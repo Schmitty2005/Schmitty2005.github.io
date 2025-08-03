@@ -1,0 +1,3 @@
+[submodule "PascalWaveTools"]
+	path = PascalWaveTools
+	url = https://github.com/Schmitty2005/PascalWaveTools.git
