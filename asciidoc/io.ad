@@ -1,0 +1,21 @@
+= Pascal Projects (FPC and Delphi) 
+
+
+== Guitar Chord Box
+Uses LCL and BGRABitmap canvas to draw a chord box.
+
+link:https://github.com/Schmitty2005/GuitarChordBox[Source Code]
+
+== Morse Keyer
+Create an audio file of morse code.
+
+link:https://github.com/Schmitty2005/MorseKeyerPascal[Source Code]
+
+== Wave Tools
+For working with .wav files and sound creation.
+
+link:https://github.com/Schmitty2005/PascalWaveTools[Source Code]
+
+link:https://html-preview.github.io/?url=https://raw.githubusercontent.com/Schmitty2005/PascalWaveTools/master/docs/PascalWaveTools/wavetools/index.html[Docs]
+
+
