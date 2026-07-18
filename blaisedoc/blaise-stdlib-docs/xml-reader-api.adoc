@@ -1,0 +1,121 @@
+= Xml.Reader Unit — API Reference
+:toc: left
+:toclevels: 3
+:source-highlighter: rouge
+:icons: font
+:sectnums:
+
+A one-function convenience facade over `Xml.Parser`, for the common
+case of "parse this whole string into a DOM tree."
+
+== Overview
+
+`GetXML` parses an XML document string into the `Xml.Types` tree by
+driving the `Xml.Parser` engine. The caller owns the returned
+document (parent-owns-child) — releasing it frees the whole tree.
+`EXMLParseError` is raised on malformed input.
+
+[source,pascal]
+----
+Doc := GetXML(S);
+Title := Doc.Root.ChildText('title');
+Doc.Free();
+----
+
+[NOTE]
+====
+`TXMLDocument`, `TXMLParser`, and `EXMLParseError` are declared in
+`Xml.Types` and `Xml.Parser` respectively — see those units' own
+reference pages for the full DOM and parser API. This page covers
+only the `Xml.Reader` facade itself.
+====
+
+== Free Functions
+
+=== GetXML
+
+Parses `AText` into an XML document.
+
+[source,pascal]
+----
+function GetXML(const AText: string): TXMLDocument;
+----
+
+Raises `EXMLParseError` on malformed input. Whitespace-only text
+nodes are dropped during parsing; to keep them, use `TXMLParser`
+directly with `PreserveWhitespace := True` instead of going through
+this facade.
+
+Internally, `GetXML` is a thin wrapper:
+
+[source,pascal]
+----
+function GetXML(const AText: string): TXMLDocument;
+var
+  P: TXMLParser;
+begin
+  P := TXMLParser.Create(AText);
+  Result := P.Parse();
+  P.Free();
+end;
+----
+
+.Example — parsing and reading a document
+[source,pascal]
+----
+uses
+  Xml.Reader;
+
+var
+  Doc: TXMLDocument;
+  Title: string;
+begin
+  Doc := GetXML(
+    '<?xml version="1.0"?>' +
+    '<book id="b1"><title>Dune</title><author>Frank Herbert</author></book>');
+  try
+    Title := Doc.Root.ChildText('title');
+    WriteLn(Title);   // Dune
+  finally
+    Doc.Free();
+  end;
+end;
+----
+
+.Example — handling malformed input
+[source,pascal]
+----
+var
+  Doc: TXMLDocument;
+begin
+  try
+    Doc := GetXML('<book><title>Unclosed');
+  except
+    on E: EXMLParseError do
+      WriteLn('Failed to parse: ' + E.Message);
+  end;
+end;
+----
+
+.Example — preserving whitespace (bypassing the facade)
+[source,pascal]
+----
+uses
+  Xml.Types, Xml.Parser;
+
+var
+  P: TXMLParser;
+  Doc: TXMLDocument;
+begin
+  P := TXMLParser.Create('<root>  <a/>  </root>');
+  P.PreserveWhitespace := True;
+  Doc := P.Parse();
+  P.Free();
+  try
+    // whitespace-only text nodes between <root> and <a/> are retained here,
+    // whereas GetXML() would have dropped them
+  finally
+    Doc.Free();
+  end;
+end;
+----

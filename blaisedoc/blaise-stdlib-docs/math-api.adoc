@@ -1,0 +1,205 @@
+= Math Unit — API Reference
+:toc: left
+:toclevels: 3
+:source-highlighter: rouge
+:icons: font
+:sectnums:
+
+Numeric utilities for integer and floating-point types.
+
+== Overview
+
+Many familiar "math unit" functions are *not* declared here because
+they're implemented as compiler builtins instead (in `uSemantic.pas` +
+`blaise.codegen.qbe.pas`):
+
+`Abs`, `Sqrt`, `Ceil`, `Floor`, `Round`, `Trunc`, `Ln`, `Log2`,
+`Log10`, `Power`, `Sin`, `Cos`, `Tan`, `ArcTan`, `ArcTan2`, `IsNaN`,
+`IsInfinite`.
+
+This unit provides only the functions implemented in pure Blaise
+Pascal with no special codegen requirements:
+
+[cols="1,3", options="header"]
+|===
+| Group | Members
+
+| Min / Max
+| `Min`, `Max` — `Integer` / `Int64` / `Double` overloads
+
+| Sign
+| `Sign` — `Integer` / `Int64` / `Double` overloads
+
+| Division
+| `DivMod`
+
+| Range checks
+| `InRange`, `EnsureRange` — `Integer` / `Double` overloads
+
+| Constant
+| `Pi`
+|===
+
+== Constants
+
+=== Pi
+
+[source,pascal]
+----
+const
+  Pi: Double = 3.14159265358979323846;
+----
+
+.Example
+[source,pascal]
+----
+var
+  Circumference, Radius: Double;
+begin
+  Radius := 4.0;
+  Circumference := 2.0 * Pi * Radius;
+  WriteLn(Circumference);   // 25.13274...
+end;
+----
+
+== Min / Max
+
+[source,pascal]
+----
+function Min(A, B: Integer): Integer; overload;
+function Max(A, B: Integer): Integer; overload;
+function Min(A, B: Int64): Int64; overload;
+function Max(A, B: Int64): Int64; overload;
+function Min(A, B: Double): Double; overload;
+function Max(A, B: Double): Double; overload;
+----
+
+Returns the lesser/greater of the two arguments. The overload is
+selected by the argument types.
+
+.Example
+[source,pascal]
+----
+begin
+  WriteLn(Min(3, 7));         // 3
+  WriteLn(Max(3, 7));         // 7
+  WriteLn(Min(2.5, 1.25));    // 1.25
+  WriteLn(Max(100000000000, 200000000000));   // 200000000000 (Int64)
+end;
+----
+
+== Sign
+
+Returns `-1`, `0`, or `1` depending on the sign of the argument.
+
+[source,pascal]
+----
+function Sign(X: Integer): Integer; overload;
+function Sign(X: Int64): Integer; overload;
+function Sign(X: Double): Integer; overload;
+----
+
+.Example
+[source,pascal]
+----
+begin
+  WriteLn(Sign(-42));    // -1
+  WriteLn(Sign(0));      // 0
+  WriteLn(Sign(3.14));   // 1
+end;
+----
+
+== DivMod
+
+Computes quotient and remainder of integer division in one call.
+
+[source,pascal]
+----
+procedure DivMod(Dividend, Divisor: Integer; out Quotient, Remainder: Integer);
+----
+
+.Example
+[source,pascal]
+----
+var
+  Q, R: Integer;
+begin
+  DivMod(17, 5, Q, R);
+  WriteLn(Q, ' remainder ', R);   // 3 remainder 2
+end;
+----
+
+== InRange
+
+Returns `True` when `Value` lies within `[Low..High]` (both
+inclusive).
+
+[source,pascal]
+----
+function InRange(Value, Low, High: Integer): Boolean; overload;
+function InRange(Value, Low, High: Double): Boolean; overload;
+----
+
+.Example
+[source,pascal]
+----
+begin
+  WriteLn(InRange(5, 1, 10));      // True
+  WriteLn(InRange(15, 1, 10));     // False
+  WriteLn(InRange(3.5, 0.0, 3.5)); // True (inclusive)
+end;
+----
+
+== EnsureRange
+
+Returns `Value` clamped to `[Low..High]` (both inclusive).
+
+[source,pascal]
+----
+function EnsureRange(Value, Low, High: Integer): Integer; overload;
+function EnsureRange(Value, Low, High: Double): Double; overload;
+----
+
+.Example
+[source,pascal]
+----
+begin
+  WriteLn(EnsureRange(15, 0, 10));    // 10 (clamped down)
+  WriteLn(EnsureRange(-5, 0, 10));    // 0  (clamped up)
+  WriteLn(EnsureRange(7, 0, 10));     // 7  (already in range)
+end;
+----
+
+== Full Example: Clamping and Validating User Input
+
+[source,pascal]
+----
+uses
+  Math;
+
+var
+  Volume: Integer;
+  Progress: Double;
+  Q, R: Integer;
+begin
+  // Clamp a volume slider to a valid 0..100 range
+  Volume := EnsureRange(StrToInt(RawVolumeInput), 0, 100);
+  WriteLn('Volume set to: ', Volume);
+
+  // Validate a progress fraction
+  Progress := 0.87;
+  if InRange(Progress, 0.0, 1.0) then
+    WriteLn('Progress: ', Round(Progress * 100), '%');
+
+  // Split total seconds into minutes and seconds
+  DivMod(377, 60, Q, R);
+  WriteLn(Q, 'm ', R, 's');   // 6m 17s
+
+  // Direction of change
+  case Sign(Volume - 50) of
+    1:  WriteLn('above midpoint');
+    -1: WriteLn('below midpoint');
+    0:  WriteLn('at midpoint');
+  end;
+end;
+----

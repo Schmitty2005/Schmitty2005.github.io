@@ -1,0 +1,544 @@
+= Json.Types Unit — API Reference
+:toc: left
+:toclevels: 3
+:source-highlighter: rouge
+:icons: font
+:sectnums:
+
+The in-memory JSON document model (DOM). `TJSONData` is the abstract
+base; the concrete node types are `TJSONNull`, `TJSONBoolean`,
+`TJSONString`, `TJSONNumber`, `TJSONArray`, and `TJSONObject`.
+
+== Overview
+
+Both the reader (`Json.Parser` / `Json.Reader`) and code that builds a
+document by hand target this one tree, so JSON round-trips through it.
+The building API follows the .NET-friendly tree style.
+
+.Building a document
+[source,pascal]
+----
+Root := TJSONObject.Create();
+Root.Add('name', 'blaise');       // string field
+Root.Add('version', Int64(12));   // integer field
+Root.Add('stable', True);         // boolean field
+
+Arr := TJSONArray.Create();
+Arr.Add('DEBUG'); Arr.Add('UNIX'); // array elements
+Root.Add('defines', Arr);          // nested array (Root adopts Arr)
+
+WriteLn(Root.FormatJSON());   // pretty
+WriteLn(Root.AsJSON());       // compact
+----
+
+=== Memory model
+
+Parent-owns-child. Containers hold *strong* references to their
+children, so under Blaise ARC, releasing the root recursively releases
+the whole tree.
+
+[IMPORTANT]
+====
+* Every `Add()` overload that takes a `TJSONData` *adopts* the node:
+  never `Add` the same node to two parents, and never `Add` a node
+  you also keep a separate owning reference to and free yourself.
+* Use `Extract()` to move a node out of one parent before placing it
+  in another.
+====
+
+=== Typed scalars
+
+Scalars are typed nodes (`jtNull`/`jtBoolean`/`jtNumber`/`jtString`)
+so a parser can faithfully distinguish `42` from `"42"` from `true`.
+Insertion order is preserved (parallel name/value arrays in objects)
+so emitted output is stable and diffable.
+
+Serialization is delegated to `Json.Writer` (the single emit kernel):
+`AsJSON` is compact, `FormatJSON` is pretty. The writer itself has no
+dependency on this unit, so streaming-only callers need not pull in
+the DOM.
+
+== Types
+
+=== TJSONType
+
+[source,pascal]
+----
+TJSONType = (jtNull, jtBoolean, jtNumber, jtString, jtArray, jtObject);
+----
+
+=== TJSONData
+
+Abstract base for every node in the tree.
+
+[source,pascal]
+----
+TJSONData = class
+public
+  function IsNull: Boolean;
+  function AsJSON: string;                     { compact, no whitespace }
+  function FormatJSON: string; overload;        { pretty, 2-space indent }
+  function FormatJSON(AIndent: Integer): string; overload;
+
+  property JSONType: TJSONType read GetJSONType;
+  property Count: Integer read GetCount;        { 0 for scalars }
+  property AsString: string read GetAsString;
+  property AsInt64: Int64 read GetAsInt64;
+  property AsFloat: Double read GetAsFloat;
+  property AsBoolean: Boolean read GetAsBoolean;
+end;
+----
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `IsNull`
+| `True` iff `JSONType = jtNull`.
+
+| `AsJSON`
+| Serializes this node and its subtree to a compact string.
+
+| `FormatJSON` / `FormatJSON(AIndent)`
+| Serializes to a pretty-printed string (2-space indent, or the given
+  indent width).
+
+| `JSONType`
+| Which concrete node type this is — use to safely downcast.
+
+| `Count`
+| Number of children. `0` for every scalar type; element/member count
+  for `TJSONArray`/`TJSONObject`.
+
+| `AsString` / `AsInt64` / `AsFloat` / `AsBoolean`
+| Best-effort coercion to each type. Each concrete type overrides the
+  ones that make sense for it — see the coercion table below.
+|===
+
+==== Coercion table
+
+Every scalar type provides a reasonable coercion; a mismatched
+coercion returns a type-specific default rather than raising.
+
+[cols="1,1,1,1,1", options="header"]
+|===
+| Node type | AsString | AsInt64 | AsFloat | AsBoolean
+
+| `TJSONNull`
+| `'null'`
+| 0 (base default)
+| 0.0 (base default)
+| False (base default)
+
+| `TJSONBoolean`
+| `'true'`/`'false'`
+| 1/0
+| 0.0 (base default)
+| the value
+
+| `TJSONString`
+| the value
+| `StrToInt64` of the value
+| `StrToFloatJSON` of the value
+| `True` iff value = `'true'`
+
+| `TJSONNumber`
+| original lexeme text
+| the integer value (truncated if float)
+| the float value
+| `True` iff nonzero
+|===
+
+.Example — downcasting via JSONType
+[source,pascal]
+----
+var
+  Node: TJSONData;
+begin
+  Node := TJSONNumber.CreateInt(42);
+  case Node.JSONType of
+    jtNumber:  WriteLn('number: ', Node.AsInt64);
+    jtString:  WriteLn('string: ', Node.AsString);
+    jtBoolean: WriteLn('bool: ', Node.AsBoolean);
+  else
+    WriteLn('other');
+  end;
+end;
+----
+
+=== TJSONNull
+
+[source,pascal]
+----
+TJSONNull = class(TJSONData)
+end;
+----
+
+`AsString` returns `'null'`. No constructor arguments — use
+`TJSONNull.Create()`.
+
+=== TJSONBoolean
+
+[source,pascal]
+----
+TJSONBoolean = class(TJSONData)
+public
+  constructor Create(AValue: Boolean);
+  property Value: Boolean read FValue write FValue;
+end;
+----
+
+=== TJSONString
+
+[source,pascal]
+----
+TJSONString = class(TJSONData)
+public
+  constructor Create(const AValue: string);
+  property Value: string read FValue write FValue;
+end;
+----
+
+=== TJSONNumber
+
+One number node with an int/float discriminator. `FText` keeps the
+original lexeme so parsed numbers round-trip *exactly* (no
+reformatting on re-serialization); programmatically-built numbers
+synthesize it.
+
+[source,pascal]
+----
+TJSONNumber = class(TJSONData)
+public
+  constructor CreateInt(AValue: Int64);
+  constructor CreateFloat(AValue: Double);
+  constructor CreateText(const AText: string; AIsInt: Boolean);
+  property IsInteger: Boolean read FIsInt;
+end;
+----
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `CreateInt(AValue)`
+| An integer number node; `AsString` is `IntToStr(AValue)`.
+
+| `CreateFloat(AValue)`
+| A float number node; `AsString` is `Format('%g', [AValue])`.
+
+| `CreateText(AText, AIsInt)`
+| Constructs directly from an already-validated JSON number lexeme
+  (used by the reader/parser path) — preserves the exact source text
+  for round-tripping.
+
+| `IsInteger`
+| `True` if this node was constructed as an integer (`CreateInt` or
+  `CreateText(..., True)`).
+|===
+
+.Example — exact round-trip of the original lexeme
+[source,pascal]
+----
+var
+  N: TJSONNumber;
+begin
+  N := TJSONNumber.CreateText('1.50000', False);
+  WriteLn(N.AsJSON);      // 1.50000  (original text preserved, not '1.5')
+  WriteLn(N.AsFloat);     // 1.5
+end;
+----
+
+=== TJSONArray
+
+[source,pascal]
+----
+TJSONArray = class(TJSONData)
+public
+  function Add(AValue: TJSONData): Integer; overload;   { takes ownership }
+  function Add(const AValue: string): Integer; overload; { wraps TJSONString }
+  function Add(AValue: Int64): Integer; overload;
+  function Add(AValue: Boolean): Integer; overload;
+  function Add(AValue: Double): Integer; overload;
+  function AddNull: Integer;
+
+  function Extract(AIndex: Integer): TJSONData;
+  procedure Delete(AIndex: Integer);
+  procedure Clear;
+
+  function GetItem(AIndex: Integer): TJSONData;
+  property Items[AIndex: Integer]: TJSONData read GetItem; default;
+end;
+----
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `Add(AValue: TJSONData)`
+| Appends an existing node, *adopting* it. Returns the index it was
+  inserted at.
+
+| `Add(string)` / `Add(Int64)` / `Add(Boolean)` / `Add(Double)`
+| Convenience overloads that wrap the scalar in the matching
+  `TJSONString`/`TJSONNumber`/`TJSONBoolean` node and append it.
+
+| `AddNull`
+| Appends a `TJSONNull`.
+
+| `Extract(AIndex)`
+| Detaches the element at `AIndex` and returns it — caller now owns
+  it (e.g. to re-`Add` under a different parent).
+
+| `Delete(AIndex)`
+| Detaches and discards the element at `AIndex` (ARC frees it if
+  this was the last reference).
+
+| `Clear`
+| Removes all elements.
+
+| `Items[]` / `GetItem`
+| Indexed read access; `Items` is the default indexed property.
+|===
+
+.Example — building and reading an array
+[source,pascal]
+----
+var
+  Arr: TJSONArray;
+  I: Integer;
+begin
+  Arr := TJSONArray.Create();
+  Arr.Add('DEBUG');
+  Arr.Add(Int64(42));
+  Arr.Add(True);
+  Arr.AddNull();
+
+  WriteLn(Arr.Count);          // 4
+  WriteLn(Arr[0].AsString);    // DEBUG
+  WriteLn(Arr[1].AsInt64);     // 42
+
+  for I := 0 to Arr.Count - 1 do
+    WriteLn(Arr[I].AsJSON);
+  // "DEBUG"
+  // 42
+  // true
+  // null
+end;
+----
+
+=== TJSONObject
+
+Backed by two parallel arrays (`FNames`/`FValues`) preserving
+insertion order.
+
+[source,pascal]
+----
+TJSONObject = class(TJSONData)
+public
+  function Add(const AName: string; AValue: TJSONData): Integer; overload; { owns }
+  function Add(const AName: string; const AValue: string): Integer; overload;
+  function Add(const AName: string; AValue: Int64): Integer; overload;
+  function Add(const AName: string; AValue: Boolean): Integer; overload;
+  function Add(const AName: string; AValue: Double): Integer; overload;
+  function AddNull(const AName: string): Integer;
+
+  function Find(const AName: string): TJSONData;   { nil if absent }
+  function Contains(const AName: string): Boolean;
+
+  function Extract(const AName: string): TJSONData;
+  function Remove(const AName: string): Boolean;
+  procedure Delete(AIndex: Integer);
+  procedure Clear;
+
+  function GetByName(const AName: string): TJSONData;
+  function GetName(AIndex: Integer): string;
+  function GetItem(AIndex: Integer): TJSONData;
+
+  property Values[AName: string]: TJSONData read GetByName; default;
+  property Names[AIndex: Integer]: string read GetName;
+  property ItemsByIndex[AIndex: Integer]: TJSONData read GetItem;
+end;
+----
+
+==== Building members
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `Add(AName, AValue: TJSONData)`
+| Adds a member with `AName`, *adopting* `AValue`. Returns the index
+  it was inserted at.
+
+| `Add(AName, string)` / `Add(AName, Int64)` / `Add(AName, Boolean)` / `Add(AName, Double)`
+| Convenience overloads that wrap the scalar and add it.
+
+| `AddNull(AName)`
+| Adds a `TJSONNull` member.
+|===
+
+==== Reading members
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `Find(AName)`
+| Returns the member's value, or `nil` if absent.
+
+| `Contains(AName)`
+| `True` if the member exists.
+
+| `Values[]` / `GetByName`
+| Indexed-by-name access; `Values` is the default indexed property,
+  so `Obj['key']` reads via `GetByName`. Returns `nil` if absent (same
+  as `Find`).
+
+| `Names[AIndex]` / `GetName`
+| The member name at position `AIndex`, in insertion order.
+
+| `ItemsByIndex[AIndex]` / `GetItem`
+| The member value at position `AIndex`, in insertion order.
+|===
+
+==== Mutating members
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `Extract(AName)`
+| Detaches the member named `AName` and returns it (`nil` if absent)
+  — caller now owns it. Use to move a node to a different parent.
+
+| `Remove(AName)`
+| Detaches and discards the member named `AName` (ARC frees it).
+  Returns `True` if it existed.
+
+| `Delete(AIndex)`
+| Detaches and discards the member at position `AIndex`.
+
+| `Clear`
+| Removes all members.
+|===
+
+.Example — building and reading an object
+[source,pascal]
+----
+var
+  Root: TJSONObject;
+  I: Integer;
+begin
+  Root := TJSONObject.Create();
+  Root.Add('name', 'blaise');
+  Root.Add('version', Int64(12));
+  Root.Add('stable', True);
+
+  WriteLn(Root.Count);                 // 3
+  WriteLn(Root['name'].AsString);      // blaise
+  WriteLn(Root.Contains('version'));   // True
+  WriteLn(Root.Find('missing') = nil); // True
+
+  for I := 0 to Root.Count - 1 do
+    WriteLn(Root.Names[I], ' = ', Root.ItemsByIndex[I].AsJSON);
+  // name = "blaise"
+  // version = 12
+  // stable = true
+end;
+----
+
+.Example — Extract to move a node between parents
+[source,pascal]
+----
+var
+  Src, Dst: TJSONObject;
+  Moved: TJSONData;
+begin
+  Src := TJSONObject.Create();
+  Src.Add('shared', 'value');
+
+  Dst := TJSONObject.Create();
+
+  Moved := Src.Extract('shared');   { detach from Src without freeing it }
+  Dst.Add('reassigned', Moved);     { re-adopt under Dst }
+
+  WriteLn(Src.Contains('shared'));      // False
+  WriteLn(Dst['reassigned'].AsString);  // value
+end;
+----
+
+== Free Functions
+
+Equivalent to the `TJSONData` methods, offered for callers who prefer
+a functional style.
+
+[source,pascal]
+----
+function AsJSON(AData: TJSONData): string;
+function FormatJSON(AData: TJSONData): string; overload;
+function FormatJSON(AData: TJSONData; AIndent: Integer): string; overload;
+----
+
+.Example
+[source,pascal]
+----
+var
+  Root: TJSONObject;
+begin
+  Root := TJSONObject.Create();
+  Root.Add('ok', True);
+
+  WriteLn(AsJSON(Root));         // {"ok":true}
+  WriteLn(FormatJSON(Root, 4));  // pretty, 4-space indent
+end;
+----
+
+== Full Example: Building, Querying, and Serializing a Document
+
+[source,pascal]
+----
+uses
+  Json.Types;
+
+var
+  Root, Author: TJSONObject;
+  Defines: TJSONArray;
+begin
+  Root := TJSONObject.Create();
+  Root.Add('name', 'blaise');
+  Root.Add('version', Int64(12));
+  Root.Add('stable', True);
+
+  Author := TJSONObject.Create();
+  Author.Add('name', 'Graeme');
+  Author.Add('active', True);
+  Root.Add('author', Author);      { Root adopts Author }
+
+  Defines := TJSONArray.Create();
+  Defines.Add('DEBUG');
+  Defines.Add('UNIX');
+  Root.Add('defines', Defines);    { Root adopts Defines }
+
+  WriteLn(Root.FormatJSON());
+  // {
+  //   "name": "blaise",
+  //   "version": 12,
+  //   "stable": true,
+  //   "author": {
+  //     "name": "Graeme",
+  //     "active": true
+  //   },
+  //   "defines": [
+  //     "DEBUG",
+  //     "UNIX"
+  //   ]
+  // }
+
+  if Root.Contains('author') then
+    WriteLn('Author: ', Root['author']['name'].AsString);
+    // Author: Graeme
+
+  Root.Free();   { recursively frees Author and Defines too }
+end;
+----

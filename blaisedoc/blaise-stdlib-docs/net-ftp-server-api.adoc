@@ -1,0 +1,320 @@
+= Net.Ftp.Server Unit — API Reference
+:toc: left
+:toclevels: 3
+:source-highlighter: rouge
+:icons: font
+:sectnums:
+
+An FTP *server* implementation (RFC 959, passive mode only) built on top
+of `Net.Tcp`. Part of the "L5 FTP wave" — a fiber-per-control-connection
+server where each control connection gets a session fiber that speaks
+the FTP protocol against an application-supplied virtual filesystem.
+
+== Overview
+
+`TFtpServer` runs the accept loop of `Net.Tcp.TTcpServer`. Each control
+connection is handled on its own fiber, which:
+
+* Sends the `220` greeting.
+* Authenticates `USER` / `PASS` against a supplied `IFtpFileStore`.
+* Handles `PWD` / `CWD` / `TYPE`.
+* On `PASV`, opens an ephemeral data listener (OS-chosen port), replies
+  `227` with the server's IP and that port, then accepts the client's
+  data connection on the *same fiber* for the next transfer.
+* `RETR` sends file bytes over the data connection (`150` / `226` on
+  the control connection).
+* `STOR` receives bytes until EOF and stores them.
+* `NLST` / `LIST` send a directory listing over the data connection.
+* `DELE` deletes a file.
+* `QUIT` replies `221` and closes the connection.
+
+[IMPORTANT]
+====
+* *Passive mode only* — active/`PORT` mode is deferred.
+* *Plaintext only* — FTPS is deferred.
+* *Native backend only.*
+* One transfer at a time per session (the standard FTP model) — the
+  data channel is a short-lived, accept-per-transfer connection driven
+  from the control fiber.
+====
+
+The virtual filesystem itself is not part of this unit — it lives
+behind the `IFtpFileStore` interface, which the application supplies.
+That could be an in-memory map, a rooted real directory, or anything
+else that implements the interface (including a test double).
+
+== Types
+
+=== IFtpFileStore
+
+The application-supplied virtual filesystem and authenticator. Paths
+are passed through exactly as the client sends them — the server does
+not impose any layout of its own. An implementation is free to root
+paths under a real directory, key them into an in-memory map, or
+anything else.
+
+[source,pascal]
+----
+IFtpFileStore = interface
+  function Authenticate(const AUser: string; const APass: string): Boolean;
+  function GetFile(const ARemotePath: string; out AData: string): Boolean;
+  function PutFile(const ARemotePath: string; const AData: string): Boolean;
+  function DeleteFile(const ARemotePath: string): Boolean;
+  function List(const ADir: string): string;
+end;
+----
+
+[cols="2,4", options="header"]
+|===
+| Method | Behavior
+
+| `Authenticate(AUser, APass)`
+| Returns `True` if `(AUser, APass)` are valid credentials.
+
+| `GetFile(ARemotePath, out AData)`
+| Fetches `AData` for `ARemotePath`; returns `True` if the file exists.
+
+| `PutFile(ARemotePath, AData)`
+| Stores `AData` at `ARemotePath` (create or overwrite); returns
+  `True` on success.
+
+| `DeleteFile(ARemotePath)`
+| Deletes `ARemotePath`; returns `True` if it existed and was removed.
+
+| `List(ADir)`
+| Returns a bare-name listing of `ADir`, LF-separated. `ADir = ''`
+  means the root.
+|===
+
+.Example — a minimal in-memory store
+[source,pascal]
+----
+type
+  TMemoryFtpStore = class(TInterfacedObject, IFtpFileStore)
+  private
+    FUser, FPass: string;
+    FFiles: TDictionary<string, string>;
+  public
+    constructor Create(const AUser, APass: string);
+    function Authenticate(const AUser: string; const APass: string): Boolean;
+    function GetFile(const ARemotePath: string; out AData: string): Boolean;
+    function PutFile(const ARemotePath: string; const AData: string): Boolean;
+    function DeleteFile(const ARemotePath: string): Boolean;
+    function List(const ADir: string): string;
+  end;
+
+constructor TMemoryFtpStore.Create(const AUser, APass: string);
+begin
+  FUser := AUser;
+  FPass := APass;
+  FFiles := TDictionary<string, string>.Create;
+end;
+
+function TMemoryFtpStore.Authenticate(const AUser: string; const APass: string): Boolean;
+begin
+  Result := (AUser = FUser) and (APass = FPass);
+end;
+
+function TMemoryFtpStore.GetFile(const ARemotePath: string; out AData: string): Boolean;
+begin
+  Result := FFiles.TryGetValue(ARemotePath, AData);
+end;
+
+function TMemoryFtpStore.PutFile(const ARemotePath: string; const AData: string): Boolean;
+begin
+  FFiles.AddOrSetValue(ARemotePath, AData);
+  Result := True;
+end;
+
+function TMemoryFtpStore.DeleteFile(const ARemotePath: string): Boolean;
+begin
+  Result := FFiles.ContainsKey(ARemotePath);
+  if Result then
+    FFiles.Remove(ARemotePath);
+end;
+
+function TMemoryFtpStore.List(const ADir: string): string;
+var
+  Name: string;
+  Names: string;
+begin
+  Names := '';
+  for Name in FFiles.Keys do
+    Names := Names + Name + #10;
+  Result := Names;
+end;
+----
+
+=== TFtpServer
+
+A fiber-per-control-connection FTP server.
+
+[source,pascal]
+----
+TFtpServer = class
+public
+  constructor Create(APort: UInt16);
+  destructor Destroy; override;
+
+  function Start: Boolean;
+  procedure Serve(AStore: IFtpFileStore);
+  procedure Stop;
+
+  property Port: UInt16 read FPort;
+end;
+----
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `Create(APort)`
+| Constructs a server bound to the given port (not yet listening).
+
+| `Start`
+| Binds and listens on `127.0.0.1:Port`. Returns `False` on failure.
+
+| `Serve(AStore)`
+| Runs the accept loop, spawning a session-handler fiber per control
+  connection, each backed by `AStore`. Blocks (from the calling
+  fiber's perspective) until `Stop` is called. Must be driven from
+  inside a fiber.
+
+| `Stop`
+| Stops the accept loop and closes the listen socket.
+
+| `Port`
+| The port the server was constructed with.
+|===
+
+.Example — starting the server
+[source,pascal]
+----
+uses
+  Net.Ftp.Server, async.fibers;
+
+var
+  Server: TFtpServer;
+  Store: IFtpFileStore;
+begin
+  Store := TMemoryFtpStore.Create('alice', 'hunter2');
+
+  Server := TFtpServer.Create(2121);
+  if not Server.Start then
+  begin
+    WriteLn('Failed to bind port 2121');
+    Exit;
+  end;
+
+  WriteLn('FTP server listening on port ', Server.Port);
+
+  // Serve must run inside a fiber; it blocks the fiber until Stop is called.
+  SpawnFiber(procedure
+             begin
+               Server.Serve(Store);
+             end);
+
+  // ... later, from anywhere:
+  // Server.Stop;
+end;
+----
+
+== Supported Commands
+
+[cols="1,3,1", options="header"]
+|===
+| Command | Behavior | Requires auth
+
+| `USER <name>`
+| Records the pending username, replies `331`.
+| No
+
+| `PASS <password>`
+| Authenticates via `IFtpFileStore.Authenticate`; replies `230` or `530`.
+| No
+
+| `TYPE <x>`
+| Acknowledged unconditionally with `200` (no binary/ASCII distinction enforced).
+| No
+
+| `PWD`
+| Always replies `257 "/" is current directory`.
+| No
+
+| `CWD <dir>`
+| Always replies `250 directory changed` (no real directory tracking).
+| No
+
+| `PASV`
+| Opens an ephemeral data listener, replies `227` with connection info.
+| Yes
+
+| `RETR <path>`
+| Sends the file over the data connection opened by a prior `PASV`.
+| Yes, plus prior `PASV`
+
+| `STOR <path>`
+| Reads from the data connection until EOF and stores the file.
+| Yes, plus prior `PASV`
+
+| `NLST` / `LIST <dir>`
+| Sends a CRLF-terminated directory listing over the data connection.
+| Yes, plus prior `PASV`
+
+| `DELE <path>`
+| Deletes the file; replies `250` or `550`.
+| Yes
+
+| `QUIT`
+| Replies `221` and ends the session.
+| No
+
+| _(anything else)_
+| Replies `500 unknown command`.
+| —
+|===
+
+Each data-connection command (`PASV`, `RETR`, `STOR`, `NLST`/`LIST`)
+consumes the data connection opened by the most recent `PASV` — a new
+`PASV` is required before each transfer, matching standard FTP client
+behavior.
+
+== Full Example: Standalone FTP Server
+
+[source,pascal]
+----
+uses
+  Net.Ftp.Server, async.fibers;
+
+type
+  { ... TMemoryFtpStore as defined above ... }
+
+var
+  Server: TFtpServer;
+  Store: IFtpFileStore;
+begin
+  Store := TMemoryFtpStore.Create('demo', 'demo123');
+  Store.PutFile('/readme.txt', 'Welcome to the Blaise FTP demo server.');
+
+  Server := TFtpServer.Create(2121);
+
+  if Server.Start then
+  begin
+    WriteLn('Listening on 127.0.0.1:2121 (user: demo / demo123)');
+    SpawnFiber(procedure
+               begin
+                 Server.Serve(Store);
+               end);
+  end
+  else
+    WriteLn('Could not start FTP server');
+
+  // A connecting client can now:
+  //   USER demo
+  //   PASS demo123
+  //   PASV
+  //   LIST
+  //   RETR /readme.txt
+  //   QUIT
+end;
+----

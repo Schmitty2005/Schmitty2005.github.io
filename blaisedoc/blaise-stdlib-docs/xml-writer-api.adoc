@@ -1,0 +1,371 @@
+= Xml.Writer Unit — API Reference
+:toc: left
+:toclevels: 3
+:source-highlighter: rouge
+:icons: font
+:sectnums:
+
+A streaming XML writer. `TXMLWriter` emits an XML document by
+announcing structure as you go — open an element, write attributes and
+content, close it — following the design of .NET's `XmlWriter` and
+Java's StAX `XMLStreamWriter`.
+
+== Overview
+
+Output is accumulated in a `TStringBuilder`, so building even a large
+document is O(n). Typical usage:
+
+[source,pascal]
+----
+W := TXMLWriter.Create();
+W.WriteDeclaration();               // <?xml version="1.0" ...?>
+W.BeginElement('book');
+W.WriteAttribute('id', 'b1');       // attributes before any content
+W.WriteElement('title', 'Dune');    // one-shot <title>Dune</title>
+W.BeginElement('tags');
+W.WriteElement('tag', 'scifi');
+W.EndElement();
+W.EndElement();
+S := W.ToString();
+----
+
+Rules the writer enforces (raising `EXMLWriterError` otherwise):
+
+* `WriteAttribute` is only legal while the start tag is still open —
+  i.e. between `BeginElement` and the first piece of content.
+* Text (`WriteText` / `WriteCData`) must be inside an element.
+* `EndElement` must match a `BeginElement`.
+
+An element closed without any content is emitted self-closing
+(`<br/>`). Text and attribute values are escaped automatically;
+`WriteCData` splits any embedded `]]>` across two CDATA sections so
+the output is always well-formed. Comments and processing-instruction
+content are emitted verbatim — the caller must not embed `-->` / `?>`
+in them.
+
+Set `Pretty` (and `Indent`) before writing for human-readable output;
+elements containing only text stay on one line (`<title>Dune</title>`).
+The default is compact. `WriteDeclaration` always ends with a newline
+in both modes.
+
+This unit is self-contained — it does not depend on the XML
+document/DOM types. `Xml.Types` layers the tree model on top of this
+writer.
+
+== Types
+
+=== EXMLWriterError
+
+Raised when a caller violates the writer's structural rules —
+`WriteAttribute` after content has started, text/CDATA outside any
+element, or a mismatched `EndElement`.
+
+[source,pascal]
+----
+EXMLWriterError = class(Exception)
+end;
+----
+
+=== TXMLWriter
+
+[source,pascal]
+----
+TXMLWriter = class
+public
+  constructor Create;
+  destructor Destroy; override;
+
+  procedure WriteDeclaration; overload;
+  procedure WriteDeclaration(const AVersion, AEncoding: string); overload;
+
+  procedure BeginElement(const AName: string);
+  procedure EndElement;
+  procedure WriteAttribute(const AName, AValue: string);
+
+  procedure WriteText(const AText: string);
+  procedure WriteElement(const AName, AText: string);
+  procedure WriteCData(const AText: string);
+  procedure WriteComment(const AText: string);
+  procedure WriteProcessingInstruction(const ATarget, AContent: string);
+  procedure WriteRaw(const AFragment: string);
+
+  function ToString: string; override;
+  procedure Reset;
+
+  property Pretty: Boolean read FPretty write FPretty;
+  property Indent: Integer read FIndent write FIndent;
+end;
+----
+
+==== Declaration
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `WriteDeclaration`
+| Writes `<?xml version="1.0" encoding="UTF-8"?>` followed by a
+  newline.
+
+| `WriteDeclaration(AVersion, AEncoding)`
+| Writes the declaration with the given version/encoding, followed by
+  a newline.
+|===
+
+.Example
+[source,pascal]
+----
+var
+  W: TXMLWriter;
+begin
+  W := TXMLWriter.Create();
+  W.WriteDeclaration('1.1', 'ISO-8859-1');
+  WriteLn(W.ToString);
+  // <?xml version="1.1" encoding="ISO-8859-1"?>
+end;
+----
+
+==== Structure
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `BeginElement(AName)`
+| Opens `<AName`, leaving the start tag open for attributes. Closes
+  any previously open tag first.
+
+| `EndElement`
+| Closes the innermost open element. If no content was written since
+  `BeginElement`, emits a self-closing tag (`<name/>`); otherwise
+  emits `</name>`. Raises `EXMLWriterError` if there is no matching
+  open element.
+
+| `WriteAttribute(AName, AValue)`
+| Writes `name="value"` (value escaped) onto the currently open start
+  tag. Raises `EXMLWriterError` if the start tag is no longer open
+  (i.e. content has already been written).
+|===
+
+.Example — attributes must come before content
+[source,pascal]
+----
+var
+  W: TXMLWriter;
+begin
+  W := TXMLWriter.Create();
+  W.BeginElement('item');
+  W.WriteAttribute('sku', 'A100');   // OK - tag still open
+  W.WriteText('Widget');
+  try
+    W.WriteAttribute('late', 'x');   // fails - content already started
+  except
+    on E: EXMLWriterError do
+      WriteLn('Error: ' + E.Message);
+  end;
+  W.EndElement();
+end;
+----
+
+==== Content
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `WriteText(AText)`
+| Writes escaped text content inside the current element. Raises
+  `EXMLWriterError` if called outside any element.
+
+| `WriteElement(AName, AText)`
+| Convenience for a one-shot leaf element: `BeginElement` +
+  `WriteText` (if `AText <> ''`) + `EndElement`. Empty text yields a
+  self-closing `<name/>`.
+
+| `WriteCData(AText)`
+| Writes a `<![CDATA[...]]>` section. If `AText` contains `]]>`, it is
+  split across multiple CDATA sections so the output stays
+  well-formed.
+
+| `WriteComment(AText)`
+| Writes `<!--AText-->` verbatim — the caller must not embed `-->` in
+  `AText`.
+
+| `WriteProcessingInstruction(ATarget, AContent)`
+| Writes `<?ATarget AContent?>` (the space and content are omitted if
+  `AContent = ''`).
+
+| `WriteRaw(AFragment)`
+| Emits `AFragment` verbatim as content — no escaping, no structural
+  checks beyond closing any open start tag first. Use for pre-built
+  XML fragments.
+|===
+
+.Example — mixed content
+[source,pascal]
+----
+var
+  W: TXMLWriter;
+begin
+  W := TXMLWriter.Create();
+  W.BeginElement('doc');
+  W.WriteComment(' generated by example ');
+  W.WriteElement('title', 'Report');
+  W.BeginElement('body');
+  W.WriteText('Some text with a ');
+  W.WriteCData('raw <tag> that stays literal');
+  W.EndElement();
+  W.EndElement();
+
+  WriteLn(W.ToString);
+  // <doc><!-- generated by example --><title>Report</title><body>Some text with a <![CDATA[raw <tag> that stays literal]]></body></doc>
+end;
+----
+
+==== Output control
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `ToString`
+| Returns the accumulated document text so far.
+
+| `Reset`
+| Discards all output and internal state, returning the writer to a
+  fresh empty document.
+
+| `Pretty`
+| When `True`, inserts newlines and indentation between
+  element-content siblings. Elements containing only text still
+  render on a single line. Default `False` (compact).
+
+| `Indent`
+| Spaces per nesting level when `Pretty` is `True`. Default `2`.
+|===
+
+.Example — pretty vs compact
+[source,pascal]
+----
+var
+  Compact, Pretty: TXMLWriter;
+begin
+  Compact := TXMLWriter.Create();
+  Compact.BeginElement('root');
+  Compact.WriteElement('a', '1');
+  Compact.WriteElement('b', '2');
+  Compact.EndElement();
+  WriteLn(Compact.ToString);
+  // <root><a>1</a><b>2</b></root>
+
+  Pretty := TXMLWriter.Create();
+  Pretty.Pretty := True;
+  Pretty.Indent := 4;
+  Pretty.BeginElement('root');
+  Pretty.WriteElement('a', '1');
+  Pretty.WriteElement('b', '2');
+  Pretty.EndElement();
+  WriteLn(Pretty.ToString);
+  // <root>
+  //     <a>1</a>
+  //     <b>2</b>
+  // </root>
+end;
+----
+
+.Example — Reset for reuse
+[source,pascal]
+----
+var
+  W: TXMLWriter;
+  I: Integer;
+begin
+  W := TXMLWriter.Create();
+  for I := 1 to 3 do
+  begin
+    W.Reset();
+    W.BeginElement('item');
+    W.WriteAttribute('n', IntToStr(I));
+    W.EndElement();
+    WriteLn(W.ToString);
+  end;
+  // <item n="1"/>
+  // <item n="2"/>
+  // <item n="3"/>
+end;
+----
+
+== Free Functions
+
+=== XMLEscapeText
+
+Escapes text content: `&`, `<`, `>`.
+
+[source,pascal]
+----
+function XMLEscapeText(const S: string): string;
+----
+
+=== XMLEscapeAttr
+
+Escapes an attribute value (to be emitted in double quotes): `&`,
+`<`, `>`, `"`, plus TAB/LF/CR as character references so they survive
+a round trip.
+
+[source,pascal]
+----
+function XMLEscapeAttr(const S: string): string;
+----
+
+.Example
+[source,pascal]
+----
+begin
+  WriteLn(XMLEscapeText('Tom & Jerry <show>'));
+  // Tom &amp; Jerry &lt;show&gt;
+
+  WriteLn(XMLEscapeAttr('line1' + #10 + 'line2 "quoted"'));
+  // line1&#10;line2 &quot;quoted&quot;
+end;
+----
+
+Both functions are used internally by `TXMLWriter.WriteText` /
+`WriteAttribute`, but are exposed for callers building XML fragments
+by hand (e.g. for `WriteRaw`).
+
+== Full Example: Building an RSS-style Feed
+
+[source,pascal]
+----
+uses
+  Xml.Writer;
+
+var
+  W: TXMLWriter;
+  I: Integer;
+  Titles: array[0..1] of string;
+begin
+  Titles[0] := 'Blaise v0.13.0 released';
+  Titles[1] := 'Native backend now default';
+
+  W := TXMLWriter.Create();
+  W.Pretty := True;
+  W.WriteDeclaration();
+
+  W.BeginElement('feed');
+  W.WriteAttribute('xmlns', 'http://example.com/ns');
+
+  W.WriteElement('title', 'Blaise Release Notes');
+
+  for I := 0 to High(Titles) do
+  begin
+    W.BeginElement('entry');
+    W.WriteElement('headline', Titles[I]);
+    W.EndElement();
+  end;
+
+  W.EndElement();   // feed
+
+  WriteLn(W.ToString);
+end;
+----

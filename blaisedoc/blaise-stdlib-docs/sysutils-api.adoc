@@ -1,0 +1,297 @@
+= SysUtils Unit — API Reference
+:toc: left
+:toclevels: 3
+:source-highlighter: rouge
+:icons: font
+:sectnums:
+
+The `Exception` base class, integer-parsing helpers, `BoolToStr`, and
+basic file-path utilities.
+
+[NOTE]
+====
+This file's own header comment describes it as "Blaise RTL —
+SysUtils unit," even though it physically lives in
+`stdlib/src/main/pascal`. Documented here per its actual location in
+the file listing.
+====
+
+== Overview
+
+Deliberately absent from this unit: `FileExists`, `DeleteFile`,
+`RenameFile`, `SetCurrentDir`, `ExtractFileExt`, `IntToStr`,
+`StrToInt`, `Format`, `UpperCase`, `LowerCase`, `Trim`, `CompareStr`,
+`CompareText`, `SameText`, and friends — these are compiler built-ins.
+Re-declaring them here would shadow the built-ins and produce a
+duplicate-identifier compile error.
+
+Platform constants (`LineEnding`, `DirectorySeparator`,
+`PathSeparator`) live in `System.pas` — they are platform
+fundamentals, not `SysUtils` concerns. Blaise does not carry the
+Delphi/FPC legacy aliases `sLineBreak` or `PathDelim`.
+
+Several functions here exist purely to back compiler codegen (their
+names are prefixed with `_` and documented as "not intended for
+direct use") — they're listed for completeness, but application code
+should call the ordinary built-ins (`StrToInt`, division/`mod`) and
+let the compiler wire these in automatically.
+
+== Types
+
+=== Exception
+
+The base exception class. All standard-library exception types
+(`EInOutError`, `EConvertError`, `EDivByZero`, and the many
+unit-specific ones like `EDecimalError`/`EJSONParseError`) derive from
+this.
+
+[source,pascal]
+----
+Exception = class
+  FMessage: string;
+  constructor Create(AMessage: string);
+  property Message: string read FMessage;
+end;
+----
+
+.Example
+[source,pascal]
+----
+try
+  raise Exception.Create('something went wrong');
+except
+  on E: Exception do
+    WriteLn('Caught: ' + E.Message);
+end;
+----
+
+=== EInOutError
+
+Raised for I/O-related failures by units that choose to use it (a
+general-purpose I/O exception; several units define their own more
+specific error types instead, e.g. `EStreamError` in `Streams`).
+
+[source,pascal]
+----
+EInOutError = class(Exception)
+end;
+----
+
+=== EConvertError
+
+Raised by validating conversion helpers when the input can't be
+converted — e.g. `_StrToIntChecked` on non-numeric text.
+
+[source,pascal]
+----
+EConvertError = class(Exception)
+end;
+----
+
+=== EDivByZero
+
+Raised by integer `div`/`mod` when the divisor is zero, matching
+Delphi's `System.SysUtils.EDivByZero`.
+
+[source,pascal]
+----
+EDivByZero = class(Exception)
+end;
+----
+
+The compiler emits a divisor-zero guard before each integer division
+that calls `_RaiseDivByZero` when `SysUtils` is in scope. *Without*
+`SysUtils` in scope, division by zero instead traps in hardware
+(`SIGFPE`).
+
+.Example
+[source,pascal]
+----
+uses
+  SysUtils;
+
+var
+  A, B, Q: Integer;
+begin
+  A := 10;
+  B := 0;
+  try
+    Q := A div B;
+  except
+    on E: EDivByZero do
+      WriteLn('Error: ' + E.Message);   // Division by zero
+  end;
+end;
+----
+
+== Integer Parsing
+
+[source,pascal]
+----
+function StrToIntDef(const S: string; ADefault: Integer): Integer;
+function StrToInt64Def(const S: string; ADefault: Int64): Int64;
+----
+
+Parses `S` as a decimal (or `$`-prefixed hexadecimal) integer;
+returns `ADefault` if `S` is empty, malformed, or has trailing
+non-digit characters. Never raises.
+
+Accepted formats: optional leading `+`/`-`, then either decimal digits
+or a `$` followed by hex digits (e.g. `'42'`, `'-7'`, `'$1A2B'`).
+
+.Example
+[source,pascal]
+----
+begin
+  WriteLn(StrToIntDef('42', -1));       // 42
+  WriteLn(StrToIntDef('$FF', -1));      // 255
+  WriteLn(StrToIntDef('not a number', -1));  // -1
+  WriteLn(StrToIntDef('', 0));          // 0
+end;
+----
+
+[NOTE]
+====
+`_StrToIntChecked` / `_StrToInt64Checked` are validating variants that
+*raise* `EConvertError` on malformed input instead of returning a
+default. They exist so the compiler can rewrite ordinary `StrToInt` /
+`StrToInt64` calls to the checked, raising behavior whenever
+`SysUtils` is in scope — matching Delphi/FPC semantics, where the
+built-in conversion raises. Without `SysUtils` in scope, the lenient
+runtime `_StrToInt` is used instead (parses what it can, never
+raises). Application code should just call the ordinary `StrToInt` /
+`StrToInt64` built-ins and let this substitution happen automatically
+— these `_`-prefixed functions are not meant to be called directly.
+====
+
+== BoolToStr
+
+[source,pascal]
+----
+function BoolToStr(B: Boolean; AUseBoolStrs: Boolean = False): string;
+----
+
+Converts a boolean to text. Not a compiler built-in — a pure Pascal
+implementation.
+
+[IMPORTANT]
+====
+The `AUseBoolStrs` parameter is accepted for Delphi/FPC signature
+compatibility but is currently *not* honored — the function always
+returns `'True'` / `'False'` regardless of its value.
+====
+
+.Example
+[source,pascal]
+----
+begin
+  WriteLn(BoolToStr(True));    // True
+  WriteLn(BoolToStr(False));   // False
+end;
+----
+
+== File Path Utilities
+
+=== ExpandFileName
+
+[source,pascal]
+----
+function ExpandFileName(const APath: string): string;
+----
+
+Resolves a relative path to an absolute path.
+
+* If `APath` is already absolute (starts with `/`), it is returned
+  unchanged after normalizing redundant separators and `.`
+  components.
+* Otherwise it is resolved relative to `GetCurrentDir()`.
+* `''` resolves to `GetCurrentDir()`.
+
+[NOTE]
+====
+`..` segments are removed by simple text processing — *not* resolved
+against the real filesystem, so symlinks are not followed (unlike
+POSIX `realpath`). This matches Delphi/FPC behavior on paths that
+don't traverse symlinks.
+====
+
+.Example
+[source,pascal]
+----
+begin
+  { assume current directory is /home/user/project }
+  WriteLn(ExpandFileName('src/main.pas'));
+  // /home/user/project/src/main.pas
+
+  WriteLn(ExpandFileName('/tmp/../var/log'));
+  // /var/log
+
+  WriteLn(ExpandFileName('./config.ini'));
+  // /home/user/project/config.ini
+end;
+----
+
+=== SameFileName
+
+[source,pascal]
+----
+function SameFileName(const S1, S2: string): Boolean;
+----
+
+Compares two file names for equality.
+
+[WARNING]
+====
+*Partial stub.* This currently performs an exact, case-sensitive
+string comparison — correct on case-sensitive filesystems (Unix) but
+*not* correct for case-insensitive platforms (Windows), which would
+need the names case-folded before comparing. Blaise has no
+platform-variance facility yet (`System.pas` hardcodes
+`DirectorySeparator`, `PathSeparator`, and `LineEnding` to Unix
+values), so there's currently nothing to key a case-insensitive branch
+on. A `FileNameCaseSensitive` platform constant is expected to land
+eventually, at which point this function will gain the
+case-insensitive path.
+====
+
+.Example
+[source,pascal]
+----
+begin
+  WriteLn(SameFileName('report.txt', 'report.txt'));   // True
+  WriteLn(SameFileName('Report.txt', 'report.txt'));   // False (exact compare, even on Windows)
+end;
+----
+
+== Full Example: Robust Config Value Parsing
+
+[source,pascal]
+----
+uses
+  SysUtils;
+
+var
+  RawPort, RawTimeout: string;
+  Port, Timeout: Integer;
+  ConfigPath: string;
+begin
+  RawPort := '8080';
+  RawTimeout := 'thirty';   { malformed on purpose }
+
+  Port := StrToIntDef(RawPort, 80);
+  Timeout := StrToIntDef(RawTimeout, 30);   { falls back to default }
+
+  WriteLn('Port: ', Port);          // Port: 8080
+  WriteLn('Timeout: ', Timeout);    // Timeout: 30
+
+  ConfigPath := ExpandFileName('config/app.ini');
+  WriteLn('Resolved config path: ', ConfigPath);
+
+  try
+    Port := 100 div StrToIntDef('0', 0);
+  except
+    on E: EDivByZero do
+      WriteLn('Config error: ', E.Message);
+  end;
+end;
+----

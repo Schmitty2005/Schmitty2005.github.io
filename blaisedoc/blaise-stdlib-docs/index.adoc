@@ -1,0 +1,340 @@
+= Blaise Standard Library — API Reference
+:toc: left
+:toclevels: 2
+:source-highlighter: rouge
+:icons: font
+
+Unofficial AsciiDoc API reference for the Blaise stdlib
+(`stdlib/src/main/pascal` in
+https://github.com/graemeg/blaise[graemeg/blaise]). Each unit below
+links to a standalone reference page with type declarations and
+runnable examples.
+
+[NOTE]
+====
+This index tracks every `.pas` file in `stdlib/src/main/pascal`.
+*Documented* units link to a finished page. *Pending* units are
+listed for completeness but don't have a page yet.
+====
+
+== Collections & Functional
+
+[cols="2,1,4", options="header"]
+|===
+| Unit | Status | Description
+
+| link:contnrs-api.html[Contnrs]
+| Documented
+| `TObjectList` and its enumerator — ARC-aware object list, FPC-compatible.
+
+| link:generics-collections-api.html[Generics.Collections]
+| Documented
+| `TList<T>`, `TStack<T>`, `TQueue<T>`, `TSet<T>`, `TDictionary<K,V>`, `TOrderedDictionary<K,V>`.
+
+| Generics.Defaults
+| Pending
+| `IComparer<T>` and related comparer infrastructure.
+
+| link:functional-api.html[Functional]
+| Documented
+| `TFunc<T,R>`, `TPredicate<T>`, `TAction<T>`, `TComparison<T>`, `TDelegatedComparer<T>`.
+|===
+
+== Dates & Numerics
+
+[cols="2,1,4", options="header"]
+|===
+| Unit | Status | Description
+
+| link:dateutils-api.html[DateUtils]
+| Documented
+| `TDate`, `TTime`, `TDateTime`, `TDuration`, `TInstant`, `TTimeZoneOffset`.
+
+| link:math-api.html[Math]
+| Documented
+| `Min`/`Max`/`Sign`/`DivMod`/`InRange`/`EnsureRange` and the `Pi` constant — pure-Pascal numeric helpers not implemented as compiler builtins.
+
+| link:numerics-decimal-api.html[Numerics.Decimal]
+| Documented
+| `TDecimal` — arbitrary-precision exact base-10 arithmetic, `TRoundingMode`/`IRoundingStrategy`, `DecFrom*` construction.
+
+| link:numerics-money-api.html[Numerics.Money]
+| Documented
+| `TMoney` — currency-tagged `TDecimal` amounts, `EMoneyMismatch` safety, `CurrencyScale` registry, `MoneyFrom*` construction.
+|===
+
+== Core
+
+[cols="2,1,4", options="header"]
+|===
+| Unit | Status | Description
+
+| link:sysutils-api.html[SysUtils]
+| Documented
+| `Exception` base class and its RTL-error subclasses, `StrToIntDef`/`StrToInt64Def`, `BoolToStr`, `ExpandFileName`, `SameFileName`. (File's own header calls it an "RTL" unit despite living in `stdlib/`.)
+|===
+
+== String Utilities
+
+[cols="2,1,4", options="header"]
+|===
+| Unit | Status | Description
+
+| link:strutils-api.html[StrUtils]
+| Documented
+| Containment/prefix/suffix/search/replace helpers, UTF-8 codepoint operations, `TStringBuilder`.
+|===
+
+== I/O & Streams
+
+[cols="2,1,4", options="header"]
+|===
+| Unit | Status | Description
+
+| link:streams-api.html[Streams]
+| Documented
+| `TInputStream`/`TOutputStream`, file/memory streams, buffering and text decorators, `TBuffer`, `CopyStream`.
+
+| Console.Ansi
+| Pending
+| ANSI terminal color/styling helpers.
+
+| Process
+| Pending
+| Child process spawning and I/O redirection.
+|===
+
+== Encoding, Crypto & Identifiers
+
+[cols="2,1,4", options="header"]
+|===
+| Unit | Status | Description
+
+| link:encoding-base64-api.html[Encoding.Base64]
+| Documented
+| `Base64Encode`/`Base64Decode` (RFC 4648) — whitespace-tolerant, non-raising decode.
+
+| Security.Crypto
+| Pending
+| Cryptographic primitives (hashing, etc.).
+
+| UUID
+| Pending
+| RFC 4122 GUID/UUID generation and parsing.
+|===
+
+== JSON
+
+[cols="2,1,4", options="header"]
+|===
+| Unit | Status | Description
+
+| link:json-types-api.html[Json.Types]
+| Documented
+| JSON DOM — `TJSONData`/`TJSONNull`/`TJSONBoolean`/`TJSONString`/`TJSONNumber`/`TJSONArray`/`TJSONObject`, coercions, `AsJSON`/`FormatJSON`.
+
+| Json.Parser
+| Pending
+| JSON text → DOM parser.
+
+| link:json-reader-api.html[Json.Reader]
+| Documented
+| `GetJSON` — one-call facade that parses a string into a `Json.Types` tree via `Json.Parser`.
+
+| link:json-writer-api.html[Json.Writer]
+| Documented
+| Streaming `TJSONWriter` — object fields, array elements, `WriteKey`/`WriteRaw` escape hatch, `Pretty`/`Indent` formatting, `JSONEscape`.
+|===
+
+== XML
+
+[cols="2,1,4", options="header"]
+|===
+| Unit | Status | Description
+
+| link:xml-types-api.html[Xml.Types]
+| Documented
+| XML DOM — `TXMLNode`/`TXMLElement`/`TXMLText`/`TXMLCData`/`TXMLComment`/`TXMLProcessingInstruction`, `TXMLDocument`.
+
+| Xml.Parser
+| Pending
+| XML text → DOM parser.
+
+| link:xml-reader-api.html[Xml.Reader]
+| Documented
+| `GetXML` — one-call facade that parses a string into an `Xml.Types` DOM tree via `Xml.Parser`.
+
+| link:xml-writer-api.html[Xml.Writer]
+| Documented
+| Streaming `TXMLWriter` — open/write/close elements, attributes, CDATA, comments, PIs; `Pretty`/`Indent` formatting.
+|===
+
+== Async Runtime (Fibers/Reactor)
+
+[cols="2,1,4", options="header"]
+|===
+| Unit | Status | Description
+
+| Async.Fibers
+| Pending
+| Cooperative fiber scheduler — `SpawnFiber` and friends.
+
+| Async.Fibers.Context.x86_64
+| Pending
+| Architecture-specific fiber context switching.
+
+| Async.IO
+| Pending
+| Non-blocking I/O primitives built on the reactor.
+
+| Async.Reactor
+| Pending
+| Event-loop reactor abstraction.
+
+| Async.Reactor.Epoll
+| Pending
+| Linux epoll reactor backend.
+
+| Async.Reactor.Kqueue
+| Pending
+| BSD/macOS kqueue reactor backend.
+
+| Async.Sync
+| Pending
+| Fiber-aware synchronization primitives.
+
+| Async.Deque
+| Pending
+| Double-ended queue used by the async runtime.
+|===
+
+== Networking — Core
+
+[cols="2,1,4", options="header"]
+|===
+| Unit | Status | Description
+
+| Net.Sockets
+| Pending
+| Low-level blocking socket wrapper.
+
+| link:net-tcp-api.html[Net.Tcp]
+| Documented
+| Fiber-native TCP layer (L5) — `TTcpConn`, `TTcpClient`, `IConnHandler`, `TTcpServer` (one fiber per connection).
+
+| Net.TLS
+| Pending
+| TLS abstraction layer.
+
+| Net.TLS.Provider
+| Pending
+| TLS backend provider plumbing.
+
+| Net.URI
+| Pending
+| URI parsing and construction.
+
+| Net.WebSockets
+| Pending
+| WebSocket frame encode/decode shared by client and server.
+
+| Net.WebSocket.Client
+| Pending
+| WebSocket client.
+
+| Net.WebSocket.Server
+| Pending
+| WebSocket server.
+|===
+
+== Networking — Application Protocols
+
+[cols="2,1,4", options="header"]
+|===
+| Unit | Status | Description
+
+| link:net-http-server-api.html[Net.Http.Server]
+| Documented
+| `THttpServer` (blocking) and `THttpFiberServer` (keep-alive), request/response types, WebSocket upgrade.
+
+| Net.Http.Client
+| Pending
+| HTTP client.
+
+| Net.Http.Client.TLS
+| Pending
+| TLS support for the HTTP client.
+
+| link:net-ftp-server-api.html[Net.Ftp.Server]
+| Documented
+| `IFtpFileStore`, `TFtpServer` — RFC 959 passive-mode FTP server.
+
+| link:net-ftp-api.html[Net.Ftp]
+| Documented
+| `TFtpClient` — RFC 959 passive-mode FTP client (PASV/RETR/STOR/LIST/DELE), reply codes via `Net.Mail.Reply`.
+
+| Net.SMTP
+| Pending
+| SMTP client (sending mail).
+
+| Net.POP3
+| Pending
+| POP3 client (retrieving mail).
+
+| Net.IMAP
+| Pending
+| IMAP client (retrieving/managing mail).
+
+| Net.Mail.Reply
+| Pending
+| Mail reply/threading helpers.
+
+| Net.NNTP
+| Pending
+| NNTP client (Usenet).
+
+| Net.NNTP.Server
+| Pending
+| NNTP server.
+|===
+
+== Testing
+
+[cols="2,1,4", options="header"]
+|===
+| Unit | Status | Description
+
+| Blaise.Testing
+| Pending
+| Unit-test framework — assertions, test registration.
+
+| Blaise.Testing.Runner.Text
+| Pending
+| Text/console test runner.
+|===
+
+== RTL-adjacent (verify module before documenting)
+
+These appeared in the file list but overlap with names also seen in
+`rtl/src/main/pascal` per the project README — confirm which module
+each actually lives in before writing a page.
+
+[cols="2,1,4", options="header"]
+|===
+| Unit | Status | Description
+
+| Classes
+| Pending
+| 
+|===
+
+== Index
+
+`blaiseunits.txt` — a plain-text manifest of stdlib unit names, not a
+Pascal source file; not documented as an API page.
+
+---
+
+_Generated as a companion to the individual unit references in this
+same output set. Update the Status column as each Pending unit gets
+its own page._

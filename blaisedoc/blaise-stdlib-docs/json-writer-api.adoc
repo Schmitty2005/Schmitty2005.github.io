@@ -1,0 +1,425 @@
+= Json.Writer Unit — API Reference
+:toc: left
+:toclevels: 3
+:source-highlighter: rouge
+:icons: font
+:sectnums:
+
+A streaming JSON writer. `TJSONWriter` emits a JSON document by
+announcing structure as you go — open a container, write fields or
+elements, close it — mirroring the design of .NET's `Utf8JsonWriter`.
+
+== Overview
+
+Output is accumulated in a `TStringBuilder`, so building even a large
+document is O(n), not the O(n²) of repeated string concatenation.
+
+The API has three tiers, mirroring how JSON is actually written:
+
+. *Object fields* (the common case) — name and value in one call:
++
+[source,pascal]
+----
+W.WriteString('name', 'blaise');
+W.WriteInt('version', 12);
+W.WriteBool('stable', True);
+----
+
+. *Array elements* — value only, no name (the `...Value` forms):
++
+[source,pascal]
+----
+W.BeginArray();
+W.WriteStringValue('a');
+W.WriteIntValue(1);
+W.EndArray();
+----
+
+. *Structure / escape hatch* — when an object member's value is
+itself a nested object or array, write the key, then open the
+container:
++
+[source,pascal]
+----
+W.WriteKey('tags');
+W.BeginArray();
+  W.WriteStringValue('x');
+W.EndArray();
+----
+
+The `...Value` suffix marks the keyless (array-element) form,
+following the naming used by .NET's `Utf8JsonWriter`, so it's always
+clear at the call site whether a write is keyed or not.
+
+Separators, newlines, and indentation are tracked internally — the
+caller never writes a comma or a brace by hand. Set `Pretty` (and
+`Indent`) before writing for human-readable output; the default is
+compact.
+
+This unit is self-contained — it does not depend on a JSON
+document/DOM type. `Json.Types` (the DOM) and `Json.Parser` are a
+separate layer built on top; `Json.Writer` has no dependency on them.
+
+== Types
+
+=== EJSONWriterError
+
+Raised on a structural misuse — currently, calling `WriteKey` outside
+an open object.
+
+[source,pascal]
+----
+EJSONWriterError = class(Exception)
+end;
+----
+
+=== TJSONContainerKind
+
+[source,pascal]
+----
+TJSONContainerKind = (ckObject, ckArray);
+----
+
+Tracks which kind of container is open at each nesting level (used
+internally by the writer's frame stack).
+
+=== TJSONWriter
+
+[source,pascal]
+----
+TJSONWriter = class
+public
+  constructor Create;
+  destructor Destroy; override;
+
+  { containers }
+  procedure BeginObject;
+  procedure EndObject;
+  procedure BeginArray;
+  procedure EndArray;
+
+  { object fields: name + value in one call }
+  procedure WriteString(const AName, AValue: string); overload;
+  procedure WriteInt(const AName: string; AValue: Int64); overload;
+  procedure WriteBool(const AName: string; AValue: Boolean); overload;
+  procedure WriteFloat(const AName: string; AValue: Double); overload;
+  procedure WriteNull(const AName: string);
+
+  { array elements: value only, no name }
+  procedure WriteStringValue(const AValue: string);
+  procedure WriteIntValue(AValue: Int64);
+  procedure WriteBoolValue(AValue: Boolean);
+  procedure WriteFloatValue(AValue: Double);
+  procedure WriteNullValue;
+
+  { structure / escape hatch }
+  procedure WriteKey(const AName: string);
+  procedure WriteRaw(const AJSONFragment: string);
+
+  function ToString: string; override;
+  procedure Reset;
+
+  property Pretty: Boolean read FPretty write FPretty;
+  property Indent: Integer read FIndent write FIndent;
+end;
+----
+
+==== Containers
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `BeginObject`
+| Opens `{`, pushing an object frame.
+
+| `EndObject`
+| Closes the innermost object with `}` (indented on its own line if
+  `Pretty` and the object had any members).
+
+| `BeginArray`
+| Opens `[`, pushing an array frame.
+
+| `EndArray`
+| Closes the innermost array with `]` (same indent rule as
+  `EndObject`).
+|===
+
+.Example — building nested structure directly
+[source,pascal]
+----
+var
+  W: TJSONWriter;
+begin
+  W := TJSONWriter.Create();
+  W.BeginObject();
+    W.WriteString('name', 'blaise');
+    W.WriteKey('tags');
+    W.BeginArray();
+      W.WriteStringValue('compiler');
+      W.WriteStringValue('pascal');
+    W.EndArray();
+  W.EndObject();
+
+  WriteLn(W.ToString);
+  // {"name":"blaise","tags":["compiler","pascal"]}
+end;
+----
+
+==== Object fields (keyed writes)
+
+Each is `WriteKey` + the matching `...Value` call, provided as a
+one-shot convenience for the common case of a scalar object member.
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `WriteString(AName, AValue)`
+| Writes `"AName":"AValue"` (value escaped per RFC 8259).
+
+| `WriteInt(AName, AValue)`
+| Writes `"AName":AValue` for an `Int64`.
+
+| `WriteBool(AName, AValue)`
+| Writes `"AName":true` or `"AName":false`.
+
+| `WriteFloat(AName, AValue)`
+| Writes `"AName":AValue` formatted with `%g`.
+
+| `WriteNull(AName)`
+| Writes `"AName":null`.
+|===
+
+[NOTE]
+====
+Float formatting uses `%g`, a reasonable general default, but it can
+use exponent form and does not guarantee shortest round-trip output.
+JSON has no integer/float distinction, so prefer `WriteInt` for whole
+numbers.
+====
+
+.Example
+[source,pascal]
+----
+var
+  W: TJSONWriter;
+begin
+  W := TJSONWriter.Create();
+  W.BeginObject();
+    W.WriteString('id', 'b1');
+    W.WriteInt('year', 2026);
+    W.WriteFloat('rating', 4.5);
+    W.WriteBool('inStock', True);
+    W.WriteNull('discontinuedDate');
+  W.EndObject();
+
+  WriteLn(W.ToString);
+  // {"id":"b1","year":2026,"rating":4.5,"inStock":true,"discontinuedDate":null}
+end;
+----
+
+==== Array elements (keyless writes)
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `WriteStringValue(AValue)`
+| Writes an escaped string element.
+
+| `WriteIntValue(AValue)`
+| Writes an `Int64` element.
+
+| `WriteBoolValue(AValue)`
+| Writes `true`/`false`.
+
+| `WriteFloatValue(AValue)`
+| Writes a `Double` element (`%g` formatting, same caveat as
+  `WriteFloat`).
+
+| `WriteNullValue`
+| Writes `null`.
+|===
+
+.Example — an array of numbers
+[source,pascal]
+----
+var
+  W: TJSONWriter;
+  I: Integer;
+begin
+  W := TJSONWriter.Create();
+  W.BeginArray();
+  for I := 1 to 5 do
+    W.WriteIntValue(I * I);
+  W.EndArray();
+
+  WriteLn(W.ToString);
+  // [1,4,9,16,25]
+end;
+----
+
+==== Structure / escape hatch
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `WriteKey(AName)`
+| Writes an object member key whose value follows as the next write
+  (typically `BeginObject`/`BeginArray`, but any value write works
+  too). Raises `EJSONWriterError` if called outside an open object.
+
+| `WriteRaw(AJSONFragment)`
+| Emits `AJSONFragment` verbatim as the next value — no escaping, no
+  validation. Use for pre-serialized JSON fragments (e.g. cached
+  output from elsewhere).
+|===
+
+.Example — WriteKey before a nested object
+[source,pascal]
+----
+var
+  W: TJSONWriter;
+begin
+  W := TJSONWriter.Create();
+  W.BeginObject();
+    W.WriteKey('address');
+    W.BeginObject();
+      W.WriteString('city', 'Cape Town');
+      W.WriteString('country', 'ZA');
+    W.EndObject();
+  W.EndObject();
+
+  WriteLn(W.ToString);
+  // {"address":{"city":"Cape Town","country":"ZA"}}
+end;
+----
+
+.Example — WriteRaw for a pre-built fragment
+[source,pascal]
+----
+var
+  W: TJSONWriter;
+begin
+  W := TJSONWriter.Create();
+  W.BeginObject();
+    W.WriteKey('cached');
+    W.WriteRaw('{"precomputed":true,"value":42}');
+  W.EndObject();
+
+  WriteLn(W.ToString);
+  // {"cached":{"precomputed":true,"value":42}}
+end;
+----
+
+==== Output control
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `ToString`
+| Returns the accumulated document text so far.
+
+| `Reset`
+| Discards all output and internal state, returning the writer to a
+  fresh empty document.
+
+| `Pretty`
+| When `True`, inserts newlines and indentation between container
+  members/elements. Default `False` (compact).
+
+| `Indent`
+| Spaces per nesting level when `Pretty` is `True`. Default `2`.
+|===
+
+.Example — pretty vs compact
+[source,pascal]
+----
+var
+  Compact, Pretty: TJSONWriter;
+begin
+  Compact := TJSONWriter.Create();
+  Compact.BeginObject();
+    Compact.WriteInt('a', 1);
+    Compact.WriteInt('b', 2);
+  Compact.EndObject();
+  WriteLn(Compact.ToString);
+  // {"a":1,"b":2}
+
+  Pretty := TJSONWriter.Create();
+  Pretty.Pretty := True;
+  Pretty.BeginObject();
+    Pretty.WriteInt('a', 1);
+    Pretty.WriteInt('b', 2);
+  Pretty.EndObject();
+  WriteLn(Pretty.ToString);
+  // {
+  //   "a": 1,
+  //   "b": 2
+  // }
+end;
+----
+
+== Free Functions
+
+=== JSONEscape
+
+Escapes a string's contents per RFC 8259 — quotes, backslash, control
+characters (`\b`, `\t`, `\n`, `\f`, `\r`, and `\u00XX` for other
+control bytes below 32). Does *not* add the surrounding quotes.
+
+[source,pascal]
+----
+function JSONEscape(const S: string): string;
+----
+
+Used internally by `WriteString`/`WriteStringValue`/`WriteKey`, but
+exposed for callers building fragments by hand (e.g. for `WriteRaw`).
+
+.Example
+[source,pascal]
+----
+begin
+  WriteLn(JSONEscape('Tab' + #9 + 'and "quotes"'));
+  // Tab\tand \"quotes\"
+end;
+----
+
+== Full Example: Building an API Response
+
+[source,pascal]
+----
+uses
+  Json.Writer;
+
+var
+  W: TJSONWriter;
+  I: Integer;
+  Scores: array[0..2] of Integer;
+begin
+  Scores[0] := 95; Scores[1] := 88; Scores[2] := 91;
+
+  W := TJSONWriter.Create();
+  W.Pretty := True;
+
+  W.BeginObject();
+    W.WriteString('status', 'ok');
+    W.WriteKey('user');
+    W.BeginObject();
+      W.WriteString('name', 'Ada');
+      W.WriteInt('id', 42);
+    W.EndObject();
+
+    W.WriteKey('scores');
+    W.BeginArray();
+      for I := 0 to High(Scores) do
+        W.WriteIntValue(Scores[I]);
+    W.EndArray();
+  W.EndObject();
+
+  WriteLn(W.ToString);
+end;
+----

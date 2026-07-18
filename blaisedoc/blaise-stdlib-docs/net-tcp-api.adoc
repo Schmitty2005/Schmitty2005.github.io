@@ -1,0 +1,401 @@
+= Net.Tcp Unit — API Reference
+:toc: left
+:toclevels: 3
+:source-highlighter: rouge
+:icons: font
+:sectnums:
+
+L5 of the fiber runtime — a fiber-native TCP layer over L3
+(`async.io`). Every server documented so far
+(link:net-http-server-api.html[Net.Http.Server]'s `THttpFiberServer`,
+link:net-ftp-server-api.html[Net.Ftp.Server]) and client
+(link:net-ftp-api.html[Net.Ftp]) is built on this unit.
+
+== Overview
+
+`TTcpConn` wraps a connected file descriptor and exposes ordinary
+synchronous-*looking* `Read`/`Write`/`ReadLine`/`Close`. Under a
+running fiber scheduler each call *parks the fiber* and resumes it on
+readiness (via `FiberRecv`/`FiberSend`), so handler code written as
+plain straight-line blocking code serves at high concurrency — no
+callbacks, no explicit state machine. With *no* scheduler running, the
+L3 primitives fall back to true blocking syscalls, so the exact same
+handler code works unmodified in a plain (non-fiber) program too.
+
+`TTcpClient.Connect` dials a numeric IPv4 address — DNS resolution is
+deferred (a `getaddrinfo` offload is flagged as a fiber-pinning hazard
+in the design docs, so it's intentionally not here yet).
+`TTcpServer` runs an accept loop that spawns *one fiber per
+connection* running a supplied handler — the core mechanism behind
+the project's C10k/C100k concurrency design.
+
+[IMPORTANT]
+====
+*Native backend only.* `async.io` → `async.fibers` pulls in the
+inline-asm fiber-context leaf, which the QBE backend rejects. Linux
+epoll for now (see `Async.Reactor.Epoll`).
+====
+
+See `docs/async-networking-design.adoc` (`[#components]`) in the
+project repo for the full L1–L5 layering this unit sits within.
+
+== Types
+
+=== TTcpConn
+
+A connected TCP stream. Owns the file descriptor — `Close` (or
+`Free`) shuts it down.
+
+[source,pascal]
+----
+TTcpConn = class
+public
+  constructor Create(AFd: Integer);
+  destructor Destroy; override;
+
+  function Read(AMaxBytes: Integer): string;
+  function ReadFull(ACount: Integer): string;
+  function Write(const AData: string): Boolean;
+  function ReadLine(out ALine: string): Boolean;
+  procedure Unread(const AData: string);
+  procedure Close;
+
+  property Fd: Integer read FFd;
+  property Closed: Boolean read FClosed;
+end;
+----
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `Create(AFd)`
+| Takes ownership of an already-connected fd, setting it
+  non-blocking.
+
+| `Read(AMaxBytes)`
+| Reads up to `AMaxBytes` into a fresh string — the fiber-parking
+  equivalent of `recv`. Returns the bytes read; `''` means the peer
+  closed (check `Closed`) or an error occurred. A *short read is
+  normal* for a stream — callers wanting a fixed amount must loop, or
+  use `ReadFull`.
+
+| `ReadFull(ACount)`
+| Reads exactly `ACount` bytes, looping over short reads internally.
+  Returns fewer than `ACount` bytes only on EOF/error. Returns `''`
+  for `ACount <= 0`.
+
+| `Write(AData)`
+| Writes the whole string, looping over short writes internally.
+  `True` when every byte was accepted; `False` on peer close / error.
+
+| `ReadLine(out ALine)`
+| Reads one line terminated by LF (CRLF and bare LF both work; the
+  returned line excludes the terminator). `True` and the line in
+  `ALine` on success. `False` on EOF before any terminator arrived
+  (`ALine` then holds whatever partial bytes did arrive). Over-read
+  bytes past the line boundary are buffered internally for the next
+  call.
+
+| `Unread(AData)`
+| Pushes `AData` back to the *front* of the internal read buffer, so
+  the next `Read`/`ReadFull`/`ReadLine` sees it first. Used by higher
+  layers (e.g. an HTTP client) that read past a framing boundary and
+  must return the surplus bytes to the stream.
+
+| `Close`
+| Closes the underlying fd. Idempotent — safe to call more than once.
+
+| `Fd`
+| The raw file descriptor.
+
+| `Closed`
+| `True` once the connection has been observed closed (peer EOF,
+  error, or an explicit `Close` call).
+|===
+
+.Example — basic read/write
+[source,pascal]
+----
+var
+  Conn: TTcpConn;
+  Response: string;
+begin
+  Conn := SomeConnectedConn;   { from TTcpClient.Connect or a server handler }
+
+  Conn.Write('PING' + #10);
+  Conn.ReadLine(Response);
+  WriteLn('Got: ', Response);
+
+  Conn.Close();
+end;
+----
+
+.Example — ReadLine buffering and Unread
+[source,pascal]
+----
+var
+  Conn: TTcpConn;
+  Line, Extra: string;
+begin
+  { Server sent "HELLO\r\nEXTRA-DATA" in one packet. }
+  Conn.ReadLine(Line);        { Line = 'HELLO'; 'EXTRA-DATA' buffered internally }
+  WriteLn(Line);
+
+  { A higher-level protocol layer over-reads past a boundary and needs to
+    give bytes back to the stream for the next reader: }
+  Extra := Conn.Read(4);      { reads 'EXTR' from the buffered remainder }
+  Conn.Unread(Extra);         { put it back — next Read/ReadLine sees it first }
+end;
+----
+
+=== TTcpClient
+
+Dials outbound TCP connections.
+
+[source,pascal]
+----
+TTcpClient = class
+public
+  function Connect(const AHostIp: string; APort: UInt16): TTcpConn;
+end;
+----
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `Connect(AHostIp, APort)`
+| Connects to a numeric dotted-quad address (e.g. `'127.0.0.1'`) on
+  `APort`. Returns a connected `TTcpConn` (caller owns it), or `nil`
+  on failure. *DNS is not performed* — pass a literal IPv4 address.
+|===
+
+.Example
+[source,pascal]
+----
+uses
+  Net.Tcp;
+
+var
+  Client: TTcpClient;
+  Conn: TTcpConn;
+begin
+  Client := TTcpClient.Create();
+  Conn := Client.Connect('93.184.216.34', 80);
+
+  if Conn = nil then
+  begin
+    WriteLn('Connect failed');
+    Exit;
+  end;
+
+  Conn.Write('GET / HTTP/1.0' + #13#10 + #13#10);
+  WriteLn(Conn.Read(4096));
+  Conn.Close();
+end;
+----
+
+=== IConnHandler
+
+The application supplies this to `TTcpServer.Serve`. The server spawns
+one fiber per accepted connection and calls `Handle(conn)` on it. The
+handler owns the connection for its lifetime and should `Close` (or
+`Free`) it when done.
+
+[source,pascal]
+----
+IConnHandler = interface
+  procedure Handle(AConn: TTcpConn);
+end;
+----
+
+.Example — an echo handler
+[source,pascal]
+----
+type
+  TEchoHandler = class(IConnHandler)
+    procedure Handle(AConn: TTcpConn);
+  end;
+
+procedure TEchoHandler.Handle(AConn: TTcpConn);
+var
+  Line: string;
+begin
+  while AConn.ReadLine(Line) do
+    AConn.Write(Line + #10);
+  { loop ends naturally on EOF/close; the server closes AConn afterwards }
+end;
+----
+
+=== TTcpServer
+
+A fiber-per-connection TCP server.
+
+[source,pascal]
+----
+TTcpServer = class
+public
+  constructor Create(APort: UInt16; AReusePort: Boolean = False);
+  destructor Destroy; override;
+
+  function Start: Boolean;
+  function StartOn(AAddr: UInt32): Boolean;
+  procedure Serve(AHandler: IConnHandler);
+  procedure Stop;
+
+  property Port: UInt16 read FPort;
+  property ListenFd: Integer read FListenFd;
+  property Running: Boolean read FRunning;
+end;
+----
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `Create(APort, AReusePort)`
+| Constructs a server bound to `APort` (not yet listening).
+  `AReusePort` opens the listen socket with `SO_REUSEPORT`, so several
+  worker processes may each run their own `TTcpServer` on the same
+  port and let the kernel load-balance connections across them.
+
+| `Start`
+| Binds and listens on `127.0.0.1:APort` (loopback only). Returns
+  `False` on failure.
+
+| `StartOn(AAddr)`
+| Binds and listens on a specific network-order IPv4 address (e.g.
+  `INADDR_ANY` to accept on all interfaces) and `APort`.
+
+| `Serve(AHandler)`
+| Runs the accept loop: for each connection, spawns a fiber running
+  `AHandler.Handle` on a fresh `TTcpConn`. Returns when `Stop` is
+  called (or on a fatal accept error). *Must* be driven from inside a
+  fiber under a running scheduler — it uses a fiber-parking accept
+  internally.
+
+| `Stop`
+| Signals `Serve` to stop and closes the listen socket. Safe to call
+  from another fiber. The accept loop re-checks its running flag on a
+  short poll interval (closing the listen fd alone doesn't reliably
+  wake a fiber parked in epoll), so `Stop` takes effect within about
+  one poll interval rather than instantly.
+
+| `Port`
+| The port the server was constructed with.
+
+| `ListenFd`
+| The raw listen file descriptor (`-1` if not started).
+
+| `Running`
+| `True` while the server is bound and its accept loop is active.
+|===
+
+.Example — a loopback-only echo server
+[source,pascal]
+----
+uses
+  Net.Tcp, async.fibers;
+
+var
+  Server: TTcpServer;
+  Handler: TEchoHandler;
+begin
+  Handler := TEchoHandler.Create();
+  Server := TTcpServer.Create(9000);
+
+  if not Server.Start() then
+  begin
+    WriteLn('Failed to bind port 9000');
+    Exit;
+  end;
+
+  SpawnFiber(procedure
+             begin
+               Server.Serve(Handler);
+             end);
+
+  // ... later, from anywhere: Server.Stop;
+end;
+----
+
+.Example — accepting on all interfaces, one worker per core
+[source,pascal]
+----
+var
+  Server: TTcpServer;
+begin
+  Server := TTcpServer.Create(9000, True);   { AReusePort = True }
+  Server.StartOn(INADDR_ANY);
+  SpawnFiber(procedure
+             begin
+               Server.Serve(Handler);
+             end);
+  { Repeat this Create/StartOn/Serve pattern once per worker process;
+    SO_REUSEPORT lets the kernel distribute incoming connections. }
+end;
+----
+
+== Implementation Notes (for context, not part of the public API)
+
+These aren't callable by application code, but they explain behavior
+you may observe:
+
+* Each accepted connection is handed to its fiber via a *plain heap
+  record* (`GetMem`), not an ARC class. Passing an ARC object to
+  `SpawnFiber` as a raw pointer would cast away its reference, so the
+  accept loop's local variable would be the only live reference — and
+  ARC would free the object on the next loop iteration, before the
+  spawned fiber ever runs (spawning doesn't itself switch fibers). The
+  connection's `TTcpConn` (an ARC object) is instead constructed
+  *inside* the fiber itself, from the raw fd, so its whole lifetime
+  lives within that fiber.
+* The accept loop polls with a bounded timeout (currently 50ms)
+  rather than blocking indefinitely, specifically so `Stop` can take
+  effect promptly without the server busy-looping while idle.
+
+== Full Example: A Minimal Line-Based Protocol Server
+
+[source,pascal]
+----
+uses
+  Net.Tcp, async.fibers;
+
+type
+  TUpperCaseHandler = class(IConnHandler)
+    procedure Handle(AConn: TTcpConn);
+  end;
+
+procedure TUpperCaseHandler.Handle(AConn: TTcpConn);
+var
+  Line: string;
+begin
+  AConn.Write('Send lines; I will upper-case them. Ctrl+D to quit.' + #10);
+  while AConn.ReadLine(Line) do
+  begin
+    if Line = 'quit' then
+      Break;
+    AConn.Write(UpperCase(Line) + #10);
+  end;
+end;
+
+var
+  Server: TTcpServer;
+  Handler: TUpperCaseHandler;
+begin
+  Handler := TUpperCaseHandler.Create();
+  Server := TTcpServer.Create(7000);
+
+  if Server.Start() then
+  begin
+    WriteLn('Listening on 127.0.0.1:7000');
+    SpawnFiber(procedure
+               begin
+                 Server.Serve(Handler);
+               end);
+  end
+  else
+    WriteLn('Could not bind port 7000');
+end;
+----

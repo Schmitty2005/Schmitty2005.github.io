@@ -1,0 +1,729 @@
+= Streams Unit — API Reference
+:toc: left
+:toclevels: 3
+:source-highlighter: rouge
+:icons: font
+:sectnums:
+
+Blaise RTL stream I/O — file, memory, buffered, and text-decorator
+streams, built around a capability-interface design.
+
+== Overview
+
+Design principles (see `docs/language-rationale.adoc` for the full
+rationale):
+
+* *One-direction streams.* `TInputStream` and `TOutputStream` are
+  separate abstract roots. Bidirectional read+write on a single handle
+  is rare; a future `TRandomAccessFile` can cover that case without
+  polluting the common API.
+* *Capability interfaces alongside abstract classes.* `IInputStream`
+  and `IOutputStream` let consumers accept "anything readable /
+  writable" without forcing single inheritance — mirroring the
+  `IMap<K,V>` + `TDictionary<K,V>` pattern. This is what lets `TBuffer`
+  cleanly act as both an input source and an output sink.
+* *Wrappers own their inner stream by default* (`OwnsInner = True`) —
+  calling `Close` on the outer wrapper tears down the whole chain.
+  Pass `OwnsInner = False` to keep the inner stream alive past the
+  wrapper's `Close`.
+* *Resource cleanup.* ARC guarantees eventual finalization, but the
+  idiomatic pattern is an explicit `Close` inside a `try..finally` so
+  flush errors surface to the caller instead of being silently lost
+  (the lesson from Rust's `BufWriter` drop-eats-errors footgun).
+
+Stream I/O failures raise `EStreamError`.
+
+== Core Types
+
+=== EStreamError
+
+Raised by stream operations on I/O failure, so the caller can act on
+the problem instead of silently losing data.
+
+[source,pascal]
+----
+EStreamError = class(Exception)
+end;
+----
+
+Raised on:
+
+* *Open failure* — `TFileInputStream` / `TFileOutputStream`
+  constructors raise when the OS rejects the open call.
+* *Read failure* — `Read` raises when the underlying read returns
+  `< 0`.
+* *Write failure* — `Write` / `Flush` raise when the underlying write
+  returns `< 0` or writes fewer bytes than requested.
+* *Buffered Close* — when buffered data cannot be flushed.
+
+[NOTE]
+====
+ARC-driven `Destroy` still swallows the error (a finalizer cannot
+raise meaningfully). Callers who care about correctness must call
+`Close` explicitly inside a `try..finally`.
+====
+
+=== TFileMode
+
+How a file is opened.
+
+[source,pascal]
+----
+TFileMode = (fmOpenRead, fmCreate, fmAppend);
+----
+
+[cols="1,3", options="header"]
+|===
+| Value | Meaning
+
+| `fmOpenRead`
+| Open an existing file for reading; fail if missing.
+
+| `fmCreate`
+| Create a new file (truncate if it exists) for writing.
+
+| `fmAppend`
+| Open for appending; create if missing.
+|===
+
+=== TSeekOrigin
+
+Reference point for `ISeekable.Seek`.
+
+[source,pascal]
+----
+TSeekOrigin = (soBeginning, soCurrent, soEnd);
+----
+
+== Capability Interfaces
+
+=== ICloseable
+
+Every stream supports `Close`. Modeled on Java's `Closeable` so a
+future `using` block can bind to it uniformly.
+
+[source,pascal]
+----
+ICloseable = interface
+  procedure Close;
+end;
+----
+
+=== IInputStream
+
+Capability interface for byte sources.
+
+[source,pascal]
+----
+IInputStream = interface(ICloseable)
+  function Read(Buf: Pointer; Count: Integer): Integer;
+end;
+----
+
+`Read` transfers up to `Count` bytes into `Buf` and returns the number
+actually read. A return of `0` means end-of-stream. A short read
+(`Result < Count`) is permitted and does *not* imply EOF — callers
+that need a fixed-size read must loop.
+
+=== IOutputStream
+
+Capability interface for byte sinks.
+
+[source,pascal]
+----
+IOutputStream = interface(ICloseable)
+  function Write(Buf: Pointer; Count: Integer): Integer;
+  procedure Flush;
+end;
+----
+
+`Write` transfers `Count` bytes from `Buf` and returns the number
+actually written. Implementations should write all bytes or raise on
+error — short writes are reserved for non-blocking sinks (not used in
+v1). `Flush` forces any buffered data to the underlying device.
+
+=== ISeekable
+
+Capability for streams that support random access. Files and
+in-memory buffers are `ISeekable`; pipes and sockets are not.
+Consumers query for the capability at runtime (e.g. via `Supports()`).
+
+[source,pascal]
+----
+ISeekable = interface
+  function Seek(Offset: Int64; Origin: TSeekOrigin): Int64;
+  function Size: Int64;
+  function Position: Int64;
+end;
+----
+
+=== IReaderFrom / IWriterTo
+
+Optional fast-path capability markers used by `CopyStream`.
+
+[source,pascal]
+----
+IReaderFrom = interface
+  function ReadFrom(Src: TInputStream): Int64;
+end;
+
+IWriterTo = interface
+  function WriteTo(Dst: TOutputStream): Int64;
+end;
+----
+
+A stream that knows how to pull bytes from a source efficiently (e.g.
+`sendfile(2)` between two file descriptors, or segment re-linking
+inside `TBuffer`) implements `IReaderFrom`. A stream that knows how to
+push its own bytes into a sink efficiently implements `IWriterTo`.
+`CopyStream` discovers these capabilities at runtime and prefers them
+over the byte-loop fallback. v1 ships no concrete fast-path
+implementations — every stream currently uses the fallback.
+
+== Abstract Base Classes
+
+=== TInputStream
+
+Abstract base for byte sources. Concrete subclasses override `Read`
+and `Close`. Consumers wanting maximum flexibility should accept
+`IInputStream` instead of this class.
+
+[source,pascal]
+----
+TInputStream = class
+  function Read(Buf: Pointer; Count: Integer): Integer; virtual; abstract;
+  procedure Close; virtual; abstract;
+end;
+----
+
+=== TOutputStream
+
+Abstract base for byte sinks.
+
+[source,pascal]
+----
+TOutputStream = class
+  function Write(Buf: Pointer; Count: Integer): Integer; virtual; abstract;
+  procedure Flush; virtual; abstract;
+  procedure Close; virtual; abstract;
+end;
+----
+
+== File Streams
+
+=== TFileInputStream
+
+Reads bytes from a file on disk. Implements `IInputStream`,
+`ICloseable`, `ISeekable`.
+
+[source,pascal]
+----
+TFileInputStream = class(TInputStream, IInputStream, ICloseable, ISeekable)
+public
+  constructor Create(const APath: string);
+  procedure Destroy;
+  function Read(Buf: Pointer; Count: Integer): Integer; override;
+  procedure Close; override;
+  function Seek(Offset: Int64; Origin: TSeekOrigin): Int64;
+  function Size: Int64;
+  function Position: Int64;
+end;
+----
+
+The constructor raises `EStreamError` if the file cannot be opened.
+
+.Example
+[source,pascal]
+----
+var
+  F: TFileInputStream;
+  Buf: array[0..1023] of Byte;
+  N: Integer;
+begin
+  F := TFileInputStream.Create('input.dat');
+  try
+    N := F.Read(@Buf, SizeOf(Buf));
+    while N > 0 do
+    begin
+      // process Buf[0..N-1]
+      N := F.Read(@Buf, SizeOf(Buf));
+    end;
+  finally
+    F.Close;
+  end;
+end;
+----
+
+=== TFileOutputStream
+
+Writes bytes to a file on disk. Implements `IOutputStream`,
+`ICloseable`, `ISeekable`.
+
+[source,pascal]
+----
+TFileOutputStream = class(TOutputStream, IOutputStream, ICloseable, ISeekable)
+public
+  constructor Create(const APath: string); overload;
+  constructor Create(const APath: string; AMode: TFileMode); overload;
+  procedure Destroy;
+  function Write(Buf: Pointer; Count: Integer): Integer; override;
+  procedure Flush; override;
+  procedure Close; override;
+  function Seek(Offset: Int64; Origin: TSeekOrigin): Int64;
+  function Size: Int64;
+  function Position: Int64;
+end;
+----
+
+The single-argument constructor opens with `fmCreate`. `Write` raises
+`EStreamError` on a failed or short write (e.g. disk full).
+
+.Example
+[source,pascal]
+----
+var
+  Out: TFileOutputStream;
+  S: string;
+begin
+  Out := TFileOutputStream.Create('log.txt', fmAppend);
+  try
+    S := 'server started' + #10;
+    Out.Write(Pointer(S), Length(S));
+    Out.Flush;
+  finally
+    Out.Close;
+  end;
+end;
+----
+
+== Memory Streams
+
+=== TMemoryInputStream
+
+Reads bytes from a Blaise string treated as raw bytes. Implements
+`IInputStream`, `ICloseable`, `ISeekable`.
+
+[source,pascal]
+----
+TMemoryInputStream = class(TInputStream, IInputStream, ICloseable, ISeekable)
+public
+  constructor Create(const AData: string);
+  function Read(Buf: Pointer; Count: Integer): Integer; override;
+  procedure Close; override;
+  function Seek(Offset: Int64; Origin: TSeekOrigin): Int64;
+  function Size: Int64;
+  function Position: Int64;
+end;
+----
+
+.Example
+[source,pascal]
+----
+var
+  M: TMemoryInputStream;
+  Buf: array[0..15] of Byte;
+  N: Integer;
+begin
+  M := TMemoryInputStream.Create('hello, world');
+  N := M.Read(@Buf, SizeOf(Buf));
+  WriteLn(N);   // 12
+end;
+----
+
+=== TMemoryOutputStream
+
+Accumulates bytes into an in-memory buffer. Use `ToString` to snapshot
+the accumulated bytes as a Blaise string. Implements `IOutputStream`,
+`ICloseable`, `ISeekable`.
+
+[source,pascal]
+----
+TMemoryOutputStream = class(TOutputStream, IOutputStream, ICloseable, ISeekable)
+public
+  constructor Create;
+  procedure Destroy;
+  function Write(Buf: Pointer; Count: Integer): Integer; override;
+  procedure Flush; override;
+  procedure Close; override;
+  function ToString: string; override;
+  function Seek(Offset: Int64; Origin: TSeekOrigin): Int64;
+  function Size: Int64;
+  function Position: Int64;
+end;
+----
+
+`Close` is a no-op at this layer (the buffer stays readable via
+`ToString` afterwards) — it is freed only on `Destroy`.
+
+.Example
+[source,pascal]
+----
+var
+  M: TMemoryOutputStream;
+  S: string;
+begin
+  M := TMemoryOutputStream.Create;
+  S := 'buffered output';
+  M.Write(Pointer(S), Length(S));
+  WriteLn(M.ToString);   // buffered output
+end;
+----
+
+== Buffering Decorators
+
+=== TBufferedInputStream
+
+Decorator that pulls from an inner stream in chunks, reducing
+syscalls / per-call overhead when the consumer reads tiny amounts
+(e.g. line-by-line text parsing). Owns the inner stream by default.
+
+[source,pascal]
+----
+TBufferedInputStream = class(TInputStream, IInputStream, ICloseable)
+public
+  constructor Create(AInner: TInputStream); overload;
+  constructor Create(AInner: TInputStream; ABufSize: Integer); overload;
+  constructor Create(AInner: TInputStream; ABufSize: Integer;
+                      AOwnsInner: Boolean); overload;
+  procedure Destroy;
+  function Read(Buf: Pointer; Count: Integer): Integer; override;
+  procedure Close; override;
+end;
+----
+
+The default buffer size is 8192 bytes. Pass `AOwnsInner = False` to
+keep the inner stream alive past the wrapper's `Close`.
+
+.Example
+[source,pascal]
+----
+var
+  Buffered: TBufferedInputStream;
+begin
+  Buffered := TBufferedInputStream.Create(
+                TFileInputStream.Create('big.log'));
+  try
+    // many small Read calls now hit the in-memory buffer, not the OS
+  finally
+    Buffered.Close;   // also closes the wrapped TFileInputStream
+  end;
+end;
+----
+
+=== TBufferedOutputStream
+
+Decorator that accumulates writes, forwarding to the inner stream on
+overflow or explicit `Flush`. Owns the inner stream by default —
+`Close` flushes, then closes the inner stream if `OwnsInner` is
+`True`.
+
+[source,pascal]
+----
+TBufferedOutputStream = class(TOutputStream, IOutputStream, ICloseable)
+public
+  constructor Create(AInner: TOutputStream); overload;
+  constructor Create(AInner: TOutputStream; ABufSize: Integer); overload;
+  constructor Create(AInner: TOutputStream; ABufSize: Integer;
+                      AOwnsInner: Boolean); overload;
+  procedure Destroy;
+  function Write(Buf: Pointer; Count: Integer): Integer; override;
+  procedure Flush; override;
+  procedure Close; override;
+end;
+----
+
+.Example
+[source,pascal]
+----
+var
+  Buffered: TBufferedOutputStream;
+  S: string;
+begin
+  Buffered := TBufferedOutputStream.Create(
+                TFileOutputStream.Create('out.log'));
+  try
+    S := 'line one' + #10;
+    Buffered.Write(Pointer(S), Length(S));
+    // ... more small writes, coalesced into fewer syscalls ...
+  finally
+    Buffered.Close;   // flushes remaining bytes, then closes the file
+  end;
+end;
+----
+
+== Text Decorators
+
+=== TStreamReader
+
+Text decorator that reads lines from any `TInputStream`. UTF-8 only in
+v1 (matches Blaise's string encoding). Line terminators are tolerant
+on read: LF, CRLF, and lone CR are all recognized; the returned line
+never includes the terminator.
+
+[source,pascal]
+----
+TStreamReader = class(TInputStream, IInputStream, ICloseable)
+public
+  constructor Create(AInner: TInputStream); overload;
+  constructor Create(AInner: TInputStream; AOwnsInner: Boolean); overload;
+  procedure Destroy;
+  function Read(Buf: Pointer; Count: Integer): Integer; override;
+  procedure Close; override;
+  function ReadLine: string;
+  function ReadAll: string;
+  function EndOfStream: Boolean;
+end;
+----
+
+[TIP]
+====
+`TStreamReader` makes per-byte `Read` calls internally, so for
+efficient line reading wrap a `TBufferedInputStream` around the real
+source rather than pointing it directly at a `TFileInputStream` (which
+would otherwise cost one syscall per byte).
+====
+
+.Example — reading a file line by line
+[source,pascal]
+----
+var
+  R: TStreamReader;
+  Line: string;
+begin
+  R := TStreamReader.Create(
+         TBufferedInputStream.Create(
+           TFileInputStream.Create('config.txt')));
+  try
+    while not R.EndOfStream do
+    begin
+      Line := R.ReadLine;
+      WriteLn('> ' + Line);
+    end;
+  finally
+    R.Close;   // tears down the whole buffered + file chain
+  end;
+end;
+----
+
+=== TStreamWriter
+
+Text decorator that writes lines to any `TOutputStream`. UTF-8 only in
+v1. `WriteLine` appends LF; `WriteString` writes the string bytes
+verbatim.
+
+[source,pascal]
+----
+TStreamWriter = class(TOutputStream, IOutputStream, ICloseable)
+public
+  constructor Create(AInner: TOutputStream); overload;
+  constructor Create(AInner: TOutputStream; AOwnsInner: Boolean); overload;
+  procedure Destroy;
+  function Write(Buf: Pointer; Count: Integer): Integer; override;
+  procedure Flush; override;
+  procedure Close; override;
+  procedure WriteString(const S: string);
+  procedure WriteLine(const S: string);
+end;
+----
+
+.Example
+[source,pascal]
+----
+var
+  W: TStreamWriter;
+begin
+  W := TStreamWriter.Create(TFileOutputStream.Create('report.txt'));
+  try
+    W.WriteLine('Report generated');
+    W.WriteLine('----------------');
+    W.WriteString('no newline here');
+  finally
+    W.Close;   // flushes and closes the underlying file
+  end;
+end;
+----
+
+== TBuffer
+
+A segmented in-memory buffer that is both source *and* sink —
+implements `IInputStream` and `IOutputStream` directly rather than
+extending the abstract base classes, which is exactly the case the
+capability-interface split was designed for.
+
+Internally, `TBuffer` is a singly-linked list of fixed-size segments
+(8 KiB each) drawn from a module-level freelist. Each segment tracks
+`Pos` (next byte to read) and `Limit` (one past the last written
+byte), so writes append and reads consume from the same list without
+copying.
+
+[source,pascal]
+----
+TBuffer = class(TObject, IInputStream, IOutputStream, ICloseable)
+public
+  constructor Create;
+  procedure Destroy;
+  function Read(Buf: Pointer; Count: Integer): Integer;
+  function Write(Buf: Pointer; Count: Integer): Integer;
+  procedure Flush;
+  procedure Close;
+  function Size: Int64;
+  procedure Clear;
+  procedure TransferTo(Dst: TBuffer; Count: Int64);
+  function IndexOf(B: Byte): Int64;
+end;
+----
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `TransferTo(Dst, Count)`
+| Moves up to `Count` bytes from this buffer into `Dst` by re-linking
+  segments rather than copying bytes. When a segment's remaining
+  bytes exceed the requested count, only the prefix is moved (via
+  `memcpy` into `Dst`'s tail segment); whole segments in the middle
+  are re-linked directly. For multi-layer pipelines
+  (decode → buffer → forward) this turns N memcpys per byte into 1,
+  matching Okio's performance characteristics.
+
+| `IndexOf(B)`
+| Returns the offset (from the current read position) of the first
+  occurrence of byte `B`, or `-1` if not present. Useful for line
+  scanning without consuming bytes.
+
+| `Clear`
+| Discards all buffered content.
+|===
+
+[NOTE]
+====
+The segment pool is currently single-threaded. When Blaise gains
+thread support, the pool will need to be guarded (per-thread freelist
+or a lock).
+====
+
+.Example — using TBuffer as a scratch pad
+[source,pascal]
+----
+var
+  Buf: TBuffer;
+  S: string;
+  Out: array[0..63] of Byte;
+  N: Integer;
+begin
+  Buf := TBuffer.Create;
+  try
+    S := 'queued bytes';
+    Buf.Write(Pointer(S), Length(S));
+
+    WriteLn(Buf.Size);          // 12
+
+    N := Buf.Read(@Out, SizeOf(Out));
+    WriteLn(N);                 // 12 (buffer now empty)
+  finally
+    Buf.Close;
+  end;
+end;
+----
+
+.Example — zero-copy hand-off between two buffers
+[source,pascal]
+----
+var
+  Decoded, Outbound: TBuffer;
+  S: string;
+begin
+  Decoded := TBuffer.Create;
+  Outbound := TBuffer.Create;
+  try
+    S := 'decoded payload';
+    Decoded.Write(Pointer(S), Length(S));
+
+    // Re-links segments into Outbound instead of copying bytes.
+    Decoded.TransferTo(Outbound, Decoded.Size);
+
+    WriteLn(Outbound.Size);   // 16
+    WriteLn(Decoded.Size);    // 0
+  finally
+    Decoded.Close;
+    Outbound.Close;
+  end;
+end;
+----
+
+== Free Functions
+
+=== CopyStream
+
+Transfers all readable bytes from `Src` to `Dst`, returning the total
+byte count copied.
+
+[source,pascal]
+----
+function CopyStream(Src: TInputStream; Dst: TOutputStream): Int64;
+----
+
+Capability discovery happens in this preference order:
+
+. `Dst` implements `IReaderFrom` → dispatch to `Dst.ReadFrom(Src)`.
+. `Src` implements `IWriterTo` → dispatch to `Src.WriteTo(Dst)`.
+. Fallback: an 8 KiB byte-loop copy through a stack buffer.
+
+This mirrors Go's `io.Copy` idiom: callers write `CopyStream(src,
+dst)` once, and the framework transparently upgrades to a zero-copy
+path whenever both sides cooperate. v1 ships no concrete fast-path
+implementations, so every call currently uses the fallback; adding
+`IReaderFrom` to `TFileOutputStream` (via `sendfile(2)` on Linux) or
+`IWriterTo` to `TBuffer` (via `TransferTo`) is a future, non-breaking
+change that existing callers pick up automatically.
+
+.Example
+[source,pascal]
+----
+var
+  Src: TFileInputStream;
+  Dst: TFileOutputStream;
+  Total: Int64;
+begin
+  Src := TFileInputStream.Create('source.bin');
+  Dst := TFileOutputStream.Create('backup.bin');
+  try
+    Total := CopyStream(Src, Dst);
+    WriteLn('Copied ', Total, ' bytes');
+  finally
+    Src.Close;
+    Dst.Close;
+  end;
+end;
+----
+
+== Full Example: Buffered Line-by-Line Transform
+
+[source,pascal]
+----
+uses
+  Streams;
+
+var
+  Reader: TStreamReader;
+  Writer: TStreamWriter;
+  Line: string;
+begin
+  Reader := TStreamReader.Create(
+              TBufferedInputStream.Create(
+                TFileInputStream.Create('input.txt')));
+  Writer := TStreamWriter.Create(
+              TBufferedOutputStream.Create(
+                TFileOutputStream.Create('output.txt')));
+  try
+    while not Reader.EndOfStream do
+    begin
+      Line := Reader.ReadLine;
+      Writer.WriteLine(UpperCase(Line));
+    end;
+  finally
+    Reader.Close;
+    Writer.Close;   // flushes the buffered writer, then closes the file
+  end;
+end;
+----

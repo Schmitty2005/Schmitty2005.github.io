@@ -1,0 +1,489 @@
+= Net.Http.Server Unit — API Reference
+:toc: left
+:toclevels: 3
+:source-highlighter: rouge
+:icons: font
+:sectnums:
+
+Two HTTP/1.1 server implementations (no TLS) sharing the same
+request/response contract, plus automatic WebSocket upgrade support.
+
+== Overview
+
+[cols="1,3", options="header"]
+|===
+| Type | Purpose
+
+| `THttpRequest`
+| A parsed HTTP request — method, path, decoded query parameters,
+  raw headers, and WebSocket upgrade detection.
+
+| `THttpResponse`
+| A response to send — status, content type, body.
+
+| `IRequestHandler`
+| The interface the application implements; the server calls
+  `Handle` once per request.
+
+| `THttpServer`
+| A minimal, single-threaded, one-connection-at-a-time server. No
+  keep-alive. Suitable for a local tool, an internal service, or a
+  test fixture.
+
+| `THttpFiberServer`
+| A fiber-per-connection server built on `Net.Tcp.TTcpServer`, with
+  HTTP/1.1 keep-alive. Reuses the same `ParseRequest` /
+  `THttpRequest` / `THttpResponse` / `IRequestHandler` contract, so
+  the same application handler works on either server. *Native
+  backend only.*
+|===
+
+Both servers recognize WebSocket upgrade requests automatically (a
+`Sec-WebSocket-Key` header): the server completes the handshake, keeps
+the socket open, and tracks it for `Broadcast`.
+
+[NOTE]
+====
+The handler is passed as an interface *parameter* to `Serve` /
+`ServeOnce` / `PollOnce` — not stored as a field — to suit backends
+where an interface field called via `Self` is problematic.
+====
+
+== Types
+
+=== THttpRequest
+
+A parsed HTTP request. Query parameters are decoded into a
+name→value map; the first value wins on a repeated key.
+
+[source,pascal]
+----
+THttpRequest = class
+public
+  Method: string;                          // GET, POST, ...
+  Path: string;                             // decoded path
+  Query: TOrderedDictionary<string, string>;
+  RawHeaders: TList<string>;
+  WebSocketKey: string;                     // Sec-WebSocket-Key, '' if not an upgrade
+
+  constructor Create;
+  destructor Destroy; override;
+
+  function QueryParam(const AName: string): string;
+  function IsWebSocketUpgrade: Boolean;
+end;
+----
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `QueryParam(AName)`
+| Returns the decoded value of query parameter `AName`, or `''` if
+  absent.
+
+| `IsWebSocketUpgrade`
+| `True` if the request carried a `Sec-WebSocket-Key` header.
+|===
+
+.Example
+[source,pascal]
+----
+procedure TMyHandler.Handle(ARequest: THttpRequest; AResponse: THttpResponse);
+begin
+  WriteLn(ARequest.Method, ' ', ARequest.Path);
+  WriteLn('name = ', ARequest.QueryParam('name'));
+
+  if ARequest.IsWebSocketUpgrade then
+    WriteLn('client requested a websocket upgrade');
+end;
+----
+
+=== THttpResponse
+
+A response to send. `Body` may be binary — treated as raw bytes.
+
+[source,pascal]
+----
+THttpResponse = class
+public
+  Status: Integer;
+  ContentType: string;
+  Body: string;
+
+  constructor Create;
+  procedure SetText(AStatus: Integer; const AContentType, ABody: string);
+end;
+----
+
+`Create` defaults to `Status := 200`, `ContentType := 'text/html;
+charset=utf-8'`, `Body := ''`.
+
+.Example
+[source,pascal]
+----
+procedure TMyHandler.Handle(ARequest: THttpRequest; AResponse: THttpResponse);
+begin
+  if ARequest.Path = '/hello' then
+    AResponse.SetText(200, 'text/plain', 'Hello, world!')
+  else
+    AResponse.SetText(404, 'text/plain', 'Not found');
+end;
+----
+
+=== IRequestHandler
+
+The interface the application implements. The server calls `Handle`
+once per request, filling `AResponse` in place.
+
+[source,pascal]
+----
+IRequestHandler = interface
+  procedure Handle(ARequest: THttpRequest; AResponse: THttpResponse);
+end;
+----
+
+.Example — a simple router
+[source,pascal]
+----
+type
+  TAppHandler = class(IRequestHandler)
+    procedure Handle(ARequest: THttpRequest; AResponse: THttpResponse);
+  end;
+
+procedure TAppHandler.Handle(ARequest: THttpRequest; AResponse: THttpResponse);
+begin
+  if (ARequest.Method = 'GET') and (ARequest.Path = '/') then
+    AResponse.SetText(200, 'text/html', '<h1>Welcome</h1>')
+  else if ARequest.Path = '/echo' then
+    AResponse.SetText(200, 'text/plain', ARequest.QueryParam('msg'))
+  else
+    AResponse.SetText(404, 'text/plain', 'Not found');
+end;
+----
+
+=== THttpServer
+
+A minimal, single-threaded HTTP/1.1 server. Connections are accepted
+and serviced one at a time — no keep-alive, `Connection: close` on
+every response.
+
+[source,pascal]
+----
+THttpServer = class
+public
+  constructor Create(APort: Integer);
+  destructor Destroy; override;
+
+  function Start: Boolean;
+  procedure SetNonBlocking;
+  procedure ServeOnce(AHandler: IRequestHandler);
+  function PollOnce(AHandler: IRequestHandler): Boolean;
+  procedure Broadcast(const APayload: string);
+
+  property Port: Integer read FPort;
+end;
+----
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `Create(APort)`
+| Constructs a server bound to `APort` (not yet listening).
+
+| `Start`
+| Binds and listens on `127.0.0.1:Port`. Returns `False` on failure.
+
+| `SetNonBlocking`
+| Puts the listen socket into non-blocking mode, so `PollOnce` never
+  blocks waiting for a connection.
+
+| `ServeOnce(AHandler)`
+| Accepts and services exactly one connection, dispatching to
+  `AHandler`. *Blocks* until a connection arrives.
+
+| `PollOnce(AHandler)`
+| Non-blocking variant of `ServeOnce`: if a connection is pending,
+  services it and returns `True`; otherwise returns `False`
+  immediately. Requires `SetNonBlocking` to have been called first.
+
+| `Broadcast(APayload)`
+| Pushes a WebSocket text frame carrying `APayload` to every
+  currently connected upgrade socket. Sockets that fail to receive
+  are dropped. Use this for a live-reload or notification channel.
+
+| `Port`
+| The port the server was constructed with.
+|===
+
+.Example — blocking accept loop
+[source,pascal]
+----
+uses
+  Net.Http.Server;
+
+var
+  Server: THttpServer;
+  Handler: TAppHandler;
+begin
+  Handler := TAppHandler.Create();
+  Server := THttpServer.Create(8080);
+
+  if not Server.Start() then
+  begin
+    WriteLn('Failed to bind port 8080');
+    Exit;
+  end;
+
+  WriteLn('Listening on http://127.0.0.1:8080');
+  while True do
+    Server.ServeOnce(Handler);   // blocks per connection
+end;
+----
+
+.Example — non-blocking poll loop
+[source,pascal]
+----
+var
+  Server: THttpServer;
+  Handler: TAppHandler;
+begin
+  Handler := TAppHandler.Create();
+  Server := THttpServer.Create(8080);
+  Server.Start();
+  Server.SetNonBlocking();
+
+  while True do
+  begin
+    if not Server.PollOnce(Handler) then
+    begin
+      // no connection pending right now — do other work, then poll again
+    end;
+  end;
+end;
+----
+
+.Example — pushing to connected WebSocket clients
+[source,pascal]
+----
+// Elsewhere in the app, e.g. after a file change is detected:
+Server.Broadcast('{"event":"reload"}');
+----
+
+=== THttpFiberServer
+
+A fiber-per-connection HTTP/1.1 server with keep-alive, built on
+`Net.Tcp.TTcpServer`. The accept loop runs on the fiber scheduler,
+spawning one handler fiber per connection; each connection fiber loops
+reading requests and honors HTTP/1.1 keep-alive until the client
+closes the connection or a request opts out with `Connection: close`.
+
+It reuses `ParseRequest`, `THttpRequest`, `THttpResponse`, and
+`IRequestHandler`, so the *same* application handler works on both
+`THttpFiberServer` and `THttpServer`.
+
+[IMPORTANT]
+====
+Native backend only — this pulls in `Net.Tcp` → `async.io` →
+`async.fibers`. Must be driven from inside a fiber: create the server,
+spawn a fiber that calls `Serve(handler)`, and call `Stop` from
+another fiber to shut it down. For the multicore per-worker-listener
+pattern, pass `AReusePort = True` and run one server per worker on the
+same port.
+====
+
+[source,pascal]
+----
+THttpFiberServer = class
+public
+  constructor Create(APort: Integer; AReusePort: Boolean = False);
+  destructor Destroy; override;
+
+  function Start: Boolean;
+  function StartAny: Boolean;
+  procedure Serve(AHandler: IRequestHandler);
+  procedure Stop;
+
+  property Port: Integer read FPort;
+  property MaxKeepAlive: Integer read FMaxKeepAlive write FMaxKeepAlive;
+end;
+----
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `Create(APort, AReusePort)`
+| Constructs the server. `AReusePort` enables `SO_REUSEPORT`-style
+  binding for multiple workers sharing one port.
+
+| `Start`
+| Binds and listens on `127.0.0.1:Port`. Returns `False` on failure.
+
+| `StartAny`
+| Binds and listens on all interfaces (`INADDR_ANY`) at `Port`.
+
+| `Serve(AHandler)`
+| Runs the accept loop, spawning a keep-alive handler fiber per
+  connection. Blocks (from the calling fiber's perspective) until
+  `Stop` is called.
+
+| `Stop`
+| Stops the accept loop and closes the listen socket.
+
+| `MaxKeepAlive`
+| Maximum number of requests served per connection before the server
+  forces `Connection: close`. `0` (the default) means no cap.
+
+| `Port`
+| The port the server was constructed with.
+|===
+
+.Example — fiber-driven server with keep-alive
+[source,pascal]
+----
+uses
+  Net.Http.Server, async.fibers;
+
+var
+  Server: THttpFiberServer;
+  Handler: TAppHandler;
+begin
+  Handler := TAppHandler.Create();
+  Server := THttpFiberServer.Create(8080);
+  Server.MaxKeepAlive := 1000;   // recycle a connection after 1000 requests
+
+  if not Server.Start() then
+  begin
+    WriteLn('Failed to bind port 8080');
+    Exit;
+  end;
+
+  WriteLn('Listening on http://127.0.0.1:8080 (fiber, keep-alive)');
+
+  SpawnFiber(procedure
+             begin
+               Server.Serve(Handler);
+             end);
+
+  // ... later, from anywhere:
+  // Server.Stop;
+end;
+----
+
+.Example — one worker per core, sharing a port
+[source,pascal]
+----
+var
+  Server: THttpFiberServer;
+begin
+  Server := THttpFiberServer.Create(8080, True);   // AReusePort = True
+  Server.StartAny();
+  SpawnFiber(procedure
+             begin
+               Server.Serve(Handler);
+             end);
+  // Repeat this Create/StartAny/Serve pattern once per worker process;
+  // the kernel load-balances incoming connections across them.
+end;
+----
+
+== Free Functions
+
+[cols="3,1", options="header"]
+|===
+| Function | Returns
+
+| `ParseRequest(const ARaw: string)`
+| `THttpRequest` — parses a raw request head (request line + headers)
+  into a request object. Caller owns the result.
+
+| `UrlDecode(const S: string)`
+| `string` — percent-decodes a URL component (`%XX` sequences and
+  `+` as space).
+|===
+
+.Example
+[source,pascal]
+----
+var
+  Req: THttpRequest;
+  Raw: string;
+begin
+  Raw := 'GET /search?q=blaise+lang HTTP/1.1' + #13#10 +
+         'Host: localhost' + #13#10 +
+         #13#10;
+
+  Req := ParseRequest(Raw);
+  WriteLn(Req.Method);              // GET
+  WriteLn(Req.Path);                // /search
+  WriteLn(Req.QueryParam('q'));     // blaise lang
+  Req.Free();
+
+  WriteLn(UrlDecode('hello%20world'));   // hello world
+end;
+----
+
+== WebSocket Upgrades
+
+Both servers detect a WebSocket upgrade via the `Sec-WebSocket-Key`
+header (see `Net.WebSockets` for frame encode/decode helpers). On
+detecting one:
+
+. The server completes the handshake (`101 Switching Protocols`, plus
+  a computed `Sec-WebSocket-Accept`).
+. The connection socket is kept open rather than closed after the
+  response.
+. `THttpServer` tracks the socket internally so `Broadcast` can push
+  frames to it later.
+
+`IRequestHandler.Handle` is *not* called for a request that upgrades
+to a WebSocket — the upgrade is handled entirely by the server before
+the application handler would run.
+
+== Full Example: Router with a Live-Reload Channel
+
+[source,pascal]
+----
+uses
+  Net.Http.Server;
+
+type
+  TAppHandler = class(IRequestHandler)
+    procedure Handle(ARequest: THttpRequest; AResponse: THttpResponse);
+  end;
+
+procedure TAppHandler.Handle(ARequest: THttpRequest; AResponse: THttpResponse);
+begin
+  case ARequest.Path of
+    '/':
+      AResponse.SetText(200, 'text/html',
+        '<html><body><h1>Blaise demo</h1></body></html>');
+    '/api/greet':
+      AResponse.SetText(200, 'text/plain',
+        'Hello, ' + ARequest.QueryParam('name'));
+  else
+    AResponse.SetText(404, 'text/plain', 'Not found');
+  end;
+end;
+
+var
+  Server: THttpServer;
+  Handler: TAppHandler;
+begin
+  Handler := TAppHandler.Create();
+  Server := THttpServer.Create(8080);
+  Server.Start();
+
+  WriteLn('Serving on http://127.0.0.1:8080');
+  while True do
+  begin
+    Server.ServeOnce(Handler);
+    // A client that connected with a Sec-WebSocket-Key is now tracked;
+    // any code elsewhere can call:
+    //   Server.Broadcast('{"event":"reload"}')
+    // to push a notification to every open browser tab.
+  end;
+end;
+----

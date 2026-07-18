@@ -1,0 +1,423 @@
+= StrUtils Unit — API Reference
+:toc: left
+:toclevels: 3
+:source-highlighter: rouge
+:icons: font
+:sectnums:
+
+String utility functions, UTF-8 codepoint operations, and
+`TStringBuilder` for efficient incremental string construction.
+
+== Overview
+
+* *0-based indexing throughout.* `PosEx`/`Pos` return `-1` when not
+  found, `0` for the first position; `IndexStr`/`IndexText` return
+  `-1` when not found, `0` for the first array element.
+* *`Str` vs `Text` naming* — identical convention to Delphi/FPC:
+  `xxxStr` is case-sensitive, `xxxText` is case-insensitive (ASCII
+  fold only, no locale awareness).
+* `LeftStr`/`RightStr`/`MidStr` are thin wrappers over the built-in
+  `Copy`.
+* All higher-level functions here are implemented in pure Blaise
+  Pascal using only the small set of primitives exposed by
+  `blaise_str.pas`.
+* `PosEx` itself is a *compiler built-in* and is not declared in this
+  unit.
+
+== Containment
+
+[source,pascal]
+----
+function ContainsStr(const S, Sub: string): Boolean;
+function ContainsText(const S, Sub: string): Boolean;
+----
+
+`True` if `Sub` appears anywhere in `S` — case-sensitive /
+case-insensitive respectively.
+
+.Example
+[source,pascal]
+----
+begin
+  WriteLn(ContainsStr('Hello, World', 'World'));   // True
+  WriteLn(ContainsStr('Hello, World', 'world'));    // False
+  WriteLn(ContainsText('Hello, World', 'world'));   // True
+end;
+----
+
+== Prefix / Suffix
+
+[source,pascal]
+----
+function StartsStr(const Prefix, S: string): Boolean;
+function StartsText(const Prefix, S: string): Boolean;
+function EndsStr(const Suffix, S: string): Boolean;
+function EndsText(const Suffix, S: string): Boolean;
+----
+
+.Example
+[source,pascal]
+----
+begin
+  WriteLn(StartsStr('report_', 'report_2026.csv'));  // True
+  WriteLn(EndsText('.CSV', 'report_2026.csv'));       // True
+  WriteLn(StartsStr('Report_', 'report_2026.csv'));   // False (case-sensitive)
+end;
+----
+
+== Extraction
+
+Thin wrappers over the built-in `Copy`; all positions/counts are
+0-based bytes.
+
+[source,pascal]
+----
+function LeftStr(const S: string; Count: Integer): string;
+function RightStr(const S: string; Count: Integer): string;
+function MidStr(const S: string; Start, Count: Integer): string;
+----
+
+.Example
+[source,pascal]
+----
+var
+  S: string;
+begin
+  S := 'Blaise Pascal';
+  WriteLn(LeftStr(S, 6));       // Blaise
+  WriteLn(RightStr(S, 6));      // Pascal
+  WriteLn(MidStr(S, 7, 6));     // Pascal
+end;
+----
+
+== Search
+
+[source,pascal]
+----
+function IndexStr(const Str: string; const Arr: array of string): Integer;
+function IndexText(const Str: string; const Arr: array of string): Integer;
+----
+
+Returns the 0-based index of `Str` in `Arr`, or `-1` if not found
+(case-sensitive / case-insensitive respectively).
+
+[NOTE]
+====
+`PosEx(Sub, S, StartPos)` — for finding a substring starting from a
+given byte offset — is a compiler built-in, not declared in this
+unit.
+====
+
+.Example
+[source,pascal]
+----
+var
+  Days: array[0..6] of string;
+begin
+  Days[0] := 'Mon'; Days[1] := 'Tue'; Days[2] := 'Wed';
+  Days[3] := 'Thu'; Days[4] := 'Fri'; Days[5] := 'Sat'; Days[6] := 'Sun';
+
+  WriteLn(IndexStr('Wed', Days));     // 2
+  WriteLn(IndexText('wed', Days));    // 2
+  WriteLn(IndexStr('xyz', Days));     // -1
+end;
+----
+
+== Replacement
+
+[source,pascal]
+----
+function ReplaceStr(const S, OldPattern, NewPattern: string): string;
+function ReplaceText(const S, OldPattern, NewPattern: string): string;
+----
+
+Replaces *all* non-overlapping occurrences of `OldPattern` with
+`NewPattern` — case-sensitive / case-insensitive respectively. Both
+build the result through an internal `TStringBuilder` pass, so cost is
+linear in the input length.
+
+.Example
+[source,pascal]
+----
+begin
+  WriteLn(ReplaceStr('foo bar foo', 'foo', 'baz'));
+  // baz bar baz
+
+  WriteLn(ReplaceText('Foo BAR foo', 'foo', 'baz'));
+  // baz BAR baz
+end;
+----
+
+== Manipulation
+
+[source,pascal]
+----
+function DupeString(const S: string; Count: Integer): string;
+function ReverseString(const S: string): string;
+function StuffString(const S: string; Start, Len: Integer;
+                      const Replacement: string): string;
+function TrimLeft(const S: string): string;
+function TrimRight(const S: string): string;
+function PadLeft(const S: string; Width: Integer; PadByte: Byte = 32): string;
+function PadRight(const S: string; Width: Integer; PadByte: Byte = 32): string;
+function CountOccurrences(const Sub, S: string): Integer;
+function RemovePrefix(const S, Prefix: string): string;
+function RemoveSuffix(const S, Suffix: string): string;
+function IsEmptyOrWhitespace(const S: string): Boolean;
+function JoinStr(const Sep: string; const Parts: array of string): string;
+----
+
+[cols="2,4", options="header"]
+|===
+| Function | Behavior
+
+| `DupeString(S, Count)`
+| Returns `S` repeated `Count` times. Empty string if `Count <= 0` or
+  `S = ''`.
+
+| `ReverseString(S)`
+| Returns `S` with its *bytes* reversed (not codepoint-aware — see
+  the UTF-8 section for codepoint-safe operations).
+
+| `StuffString(S, Start, Len, Replacement)`
+| Deletes `Len` bytes at 0-based position `Start` and inserts
+  `Replacement` there. `Start`/`Len` are clamped to valid bounds.
+
+| `TrimLeft(S)` / `TrimRight(S)`
+| Removes leading / trailing whitespace (bytes `<= 32`).
+
+| `PadLeft(S, Width, PadByte)` / `PadRight(S, Width, PadByte)`
+| Pads `S` with `PadByte` (default space) to at least `Width` bytes;
+  returns `S` unchanged if already `>= Width`.
+
+| `CountOccurrences(Sub, S)`
+| Number of non-overlapping occurrences of `Sub` in `S`.
+
+| `RemovePrefix(S, Prefix)` / `RemoveSuffix(S, Suffix)`
+| Removes `Prefix`/`Suffix` if present (case-sensitive); returns `S`
+  unchanged otherwise.
+
+| `IsEmptyOrWhitespace(S)`
+| `True` if `S` is empty or contains only whitespace.
+
+| `JoinStr(Sep, Parts)`
+| Joins `Parts` with `Sep` between each element (no trailing
+  separator).
+|===
+
+.Example
+[source,pascal]
+----
+var
+  Parts: array[0..2] of string;
+begin
+  WriteLn(DupeString('ab', 3));           // ababab
+  WriteLn(ReverseString('Blaise'));       // esialB
+
+  WriteLn(StuffString('Hello World', 6, 5, 'there'));
+  // Hello there
+
+  WriteLn('[' + TrimLeft('   padded') + ']');   // [padded]
+  WriteLn('[' + TrimRight('padded   ') + ']');  // [padded]
+
+  WriteLn(PadLeft('42', 5, Byte('0')));   // 00042
+  WriteLn(PadRight('42', 5));             // '42   '
+
+  WriteLn(CountOccurrences('ab', 'ababab'));   // 3
+
+  WriteLn(RemovePrefix('report_2026.csv', 'report_'));  // 2026.csv
+  WriteLn(RemoveSuffix('report_2026.csv', '.csv'));     // report_2026
+
+  WriteLn(IsEmptyOrWhitespace('   '));    // True
+  WriteLn(IsEmptyOrWhitespace('  x '));   // False
+
+  Parts[0] := 'a'; Parts[1] := 'b'; Parts[2] := 'c';
+  WriteLn(JoinStr(', ', Parts));   // a, b, c
+end;
+----
+
+== UTF-8 Codepoint Operations
+
+Blaise strings store raw UTF-8 bytes; `Length(S)` is a *byte* count.
+This section provides codepoint-aware operations for text that may
+contain multi-byte characters.
+
+[source,pascal]
+----
+function CodePointSize(LeadByte: Byte): Integer;
+function CodePointLength(const S: string): Integer;
+function CodePointCopy(const S: string; Index, Count: Integer): string;
+function CodePointAt(const S: string; Index: Integer): Integer;
+function CodePointPos(const Sub, S: string): Integer;
+function CodePointByteIndex(const S: string; CPIndex: Integer): Integer;
+function CodePointFromByteIndex(const S: string; ByteIndex: Integer): Integer;
+----
+
+[cols="2,4", options="header"]
+|===
+| Function | Behavior
+
+| `CodePointSize(LeadByte)`
+| Byte width (1-4) of a UTF-8 sequence given its lead byte. ASCII
+  bytes (`0..127`) are always `1`; multi-byte lead bytes encode their
+  length (`110xxxxx` = 2, `1110xxxx` = 3, `11110xxx` = 4).
+
+| `CodePointLength(S)`
+| Number of Unicode codepoints in `S`. An O(n) scan implemented via
+  an external SIMD-accelerated runtime helper
+  (`_Utf8CountCodePoints`).
+
+| `CodePointCopy(S, Index, Count)`
+| Extracts `Count` codepoints starting at codepoint position `Index`
+  (0-based), returned as a UTF-8 substring. `Index`/`Count` are
+  codepoint units, not bytes. Empty string if `Index` is out of
+  range.
+
+| `CodePointAt(S, Index)`
+| The Unicode codepoint value (`0..U+10FFFF`) at codepoint position
+  `Index`. O(n) — scans from the start to find the Nth codepoint.
+  Returns `-1` if out of range.
+
+| `CodePointPos(Sub, S)`
+| Like `Pos()` but the result is a codepoint index rather than a byte
+  index. Internally calls `Pos()` then counts codepoints up to that
+  byte position. `-1` if not found.
+
+| `CodePointByteIndex(S, CPIndex)`
+| Converts a codepoint index to its byte offset. `-1` if `CPIndex` is
+  beyond the end of the string.
+
+| `CodePointFromByteIndex(S, ByteIndex)`
+| Decodes the UTF-8 codepoint starting at a known byte offset —
+  O(1), no bounds checking (caller must ensure `ByteIndex` is valid).
+|===
+
+.Example — codepoint-safe substring on multi-byte text
+[source,pascal]
+----
+var
+  S: string;
+begin
+  S := 'caf' + Chr($C3) + Chr($A9) + 'terie';  { "caféterie", UTF-8 }
+
+  WriteLn(Length(S));              // 10 (bytes — 'é' is 2 bytes)
+  WriteLn(CodePointLength(S));     // 9  (codepoints)
+
+  WriteLn(CodePointCopy(S, 0, 4)); // café  (4 codepoints, correctly sliced)
+  WriteLn(CodePointAt(S, 3));      // 233   (Unicode value of 'é')
+end;
+----
+
+== TStringBuilder
+
+Efficient incremental string construction. Avoids the O(N²) cost of
+repeated string concatenation by maintaining a raw byte buffer that
+grows geometrically (doubling). Append operations write directly into
+the buffer without allocating intermediate ARC strings; call
+`ToString` once at the end to obtain a single managed string. This
+mirrors the compiler's internal `TIRBuffer`, which produced a 460×
+speedup in QBE IR generation — the same technique is available to
+user code here.
+
+[source,pascal]
+----
+TStringBuilder = class
+public
+  constructor Create;
+  destructor Destroy; override;
+
+  procedure Append(const S: string); overload;
+  procedure AppendByte(B: Byte); overload;
+  procedure AppendLine; overload;
+  procedure AppendLine(const S: string); overload;
+  procedure Clear;
+  function ToString: string; override;
+
+  property Length: Integer read FLen;
+end;
+----
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `Append(S)`
+| Appends a string, growing the buffer if needed.
+
+| `AppendByte(B)`
+| Appends a single byte as a character.
+
+| `AppendLine`
+| Appends a newline (`#10`).
+
+| `AppendLine(S)`
+| Appends `S` followed by a newline.
+
+| `Clear`
+| Resets the logical length to `0` without releasing the buffer
+  (capacity is retained for reuse).
+
+| `ToString`
+| Returns the accumulated content as a single managed string.
+
+| `Length`
+| Current byte length of the accumulated content.
+|===
+
+.Example — building a large string efficiently
+[source,pascal]
+----
+var
+  SB: TStringBuilder;
+  I: Integer;
+begin
+  SB := TStringBuilder.Create();
+  for I := 1 to 5 do
+  begin
+    SB.Append('line ');
+    SB.AppendLine(IntToStr(I));
+  end;
+
+  WriteLn(SB.Length);
+  WriteLn(SB.ToString);
+  // line 1
+  // line 2
+  // line 3
+  // line 4
+  // line 5
+
+  SB.Clear();   // reuse the same buffer for a fresh build
+  SB.Free();
+end;
+----
+
+== Full Example: A CSV Line Builder
+
+[source,pascal]
+----
+uses
+  StrUtils;
+
+var
+  SB: TStringBuilder;
+  Fields: array[0..2] of string;
+  Header: string;
+begin
+  Fields[0] := 'name'; Fields[1] := 'score'; Fields[2] := 'notes';
+  Header := JoinStr(',', Fields);
+
+  SB := TStringBuilder.Create();
+  SB.AppendLine(Header);
+
+  Fields[0] := 'Ada';
+  Fields[1] := PadLeft('98', 3, Byte('0'));
+  Fields[2] := ReplaceStr('needs, review', ',', ';');
+  SB.AppendLine(JoinStr(',', Fields));
+
+  WriteLn(SB.ToString);
+  // name,score,notes
+  // Ada,098,needs; review
+
+  SB.Free();
+end;
+----

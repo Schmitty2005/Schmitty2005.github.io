@@ -1,0 +1,289 @@
+= Contnrs Unit — API Reference
+:toc: left
+:toclevels: 3
+:source-highlighter: rouge
+:icons: font
+:sectnums:
+
+Blaise RTL container classes — currently `TObjectList`, matching the
+FPC `contnrs` unit layout so that compiler source using
+`uses Contnrs` and `TObjectList` works unchanged.
+
+== Overview
+
+`Contnrs` provides an ARC-aware, ownership-tracking dynamic array of
+objects:
+
+[cols="1,3", options="header"]
+|===
+| Type | Purpose
+
+| `TObjectList`
+| A growable, indexable list of objects, with an `OwnsObjects` flag
+  controlling reference-count behavior on removal.
+
+| `TObjectListEnumerator`
+| The `for..in` enumerator returned by `TObjectList.GetEnumerator`.
+|===
+
+Elements are stored as untyped `Pointer` and reference-counted through
+the ARC runtime (`_ClassAddRef` / `_ClassRelease`) — `Add` and `Put`
+take out a reference, and `Delete`, `Clear`, `Remove`, and `Destroy`
+release one.
+
+== Types
+
+=== TObjectList
+
+A growable list of objects with array-style indexing.
+
+[source,pascal]
+----
+TObjectList = class
+public
+  constructor Create(AOwnsObjects: Boolean);
+  procedure Destroy;
+
+  function Add(AObject: Pointer): Integer;
+  function Get(AIndex: Integer): Pointer;
+  procedure Put(AIndex: Integer; AObject: Pointer);
+  function IndexOf(AObject: Pointer): Integer;
+  procedure Delete(AIndex: Integer);
+  function Remove(AObject: Pointer): Integer;
+  function Extract(AObject: Pointer): Pointer;
+  procedure Clear;
+  function GetEnumerator: TObjectListEnumerator;
+
+  property Count: Integer read FCount;
+  property Items[Index: Integer]: Pointer read Get write Put; default;
+end;
+----
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `Create(AOwnsObjects)`
+| Constructs an empty list. `AOwnsObjects` only affects documentation
+  intent here — every stored element is reference-counted via ARC
+  regardless, so `Delete` / `Clear` / `Remove` / `Destroy` always
+  release the list's reference to each element.
+
+| `Add(AObject)`
+| Appends `AObject`, growing capacity if needed (doubling, starting
+  at 4). Takes out a reference. Returns the index it was inserted at.
+
+| `Get(AIndex)` / `Items[]`
+| Returns the object at `AIndex`. `Items` is the default indexed
+  property, so `List[i]` reads via `Get`.
+
+| `Put(AIndex, AObject)`
+| Replaces the object at `AIndex`, releasing the old reference and
+  taking out a new one.
+
+| `IndexOf(AObject)`
+| Returns the index of the first occurrence of `AObject`, or `-1` if
+  not present.
+
+| `Delete(AIndex)`
+| Removes the element at `AIndex`, releasing its reference, and
+  shifts later elements down.
+
+| `Remove(AObject)`
+| Finds `AObject` via `IndexOf` and deletes it. Returns the index it
+  was found at, or `-1` if not present. Matches
+  `TFPObjectList.Remove` — since `Delete` releases the list's
+  reference, when the list owns its objects the removed object is
+  freed.
+
+| `Extract(AObject)`
+| Finds and removes `AObject` from the list *without* releasing a
+  reference — hands ownership back to the caller. Returns `AObject`,
+  or `nil` if not found.
+
+| `Clear`
+| Releases every element's reference and empties the list.
+
+| `GetEnumerator`
+| Returns a `TObjectListEnumerator` positioned before the first
+  element, enabling `for Obj in List do`.
+
+| `Count`
+| Number of elements currently in the list.
+|===
+
+.Example — building and iterating a list
+[source,pascal]
+----
+type
+  TWidget = class
+    Name: string;
+    constructor Create(const AName: string);
+  end;
+
+constructor TWidget.Create(const AName: string);
+begin
+  Self.Name := AName
+end;
+
+var
+  List: TObjectList;
+  W: TWidget;
+begin
+  List := TObjectList.Create(True);
+
+  List.Add(TWidget.Create('gear'));
+  List.Add(TWidget.Create('bolt'));
+  List.Add(TWidget.Create('spring'));
+
+  WriteLn(List.Count);              // 3
+  WriteLn(TWidget(List[1]).Name);   // bolt
+
+  for W in List do
+    WriteLn(W.Name);
+  // gear
+  // bolt
+  // spring
+end;
+----
+
+.Example — Remove vs Extract
+[source,pascal]
+----
+var
+  List: TObjectList;
+  Gear, Bolt: TWidget;
+  Extracted: Pointer;
+begin
+  List := TObjectList.Create(True);
+  Gear := TWidget.Create('gear');
+  Bolt := TWidget.Create('bolt');
+  List.Add(Gear);
+  List.Add(Bolt);
+
+  // Remove releases the list's reference — Gear may be freed if this
+  // was the last reference to it.
+  List.Remove(Gear);
+  WriteLn(List.Count);   // 1
+
+  // Extract hands ownership back without releasing — Bolt survives
+  // even after it leaves the list.
+  Extracted := List.Extract(Bolt);
+  WriteLn(List.Count);            // 0
+  WriteLn(TWidget(Extracted).Name); // bolt
+end;
+----
+
+.Example — replacing an element with Put
+[source,pascal]
+----
+var
+  List: TObjectList;
+begin
+  List := TObjectList.Create(True);
+  List.Add(TWidget.Create('v1'));
+
+  List[0] := TWidget.Create('v2');   // Put: releases 'v1', keeps 'v2'
+  WriteLn(TWidget(List[0]).Name);    // v2
+end;
+----
+
+=== TObjectListEnumerator
+
+The `for..in` enumerator for `TObjectList`. Not normally constructed
+directly — obtained via `TObjectList.GetEnumerator`.
+
+[source,pascal]
+----
+TObjectListEnumerator = class
+public
+  constructor Create(AList: TObjectList);
+  function MoveNext: Boolean;
+  property Current: Pointer read GetCurrent;
+end;
+----
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `Create(AList)`
+| Wraps `AList`, positioned before the first element (index `-1`).
+
+| `MoveNext`
+| Advances to the next element; returns `False` once past the last
+  element.
+
+| `Current`
+| The element at the enumerator's current position.
+|===
+
+.Example — manual enumeration (what `for..in` expands to)
+[source,pascal]
+----
+var
+  List: TObjectList;
+  Enum: TObjectListEnumerator;
+begin
+  List := TObjectList.Create(True);
+  List.Add(TWidget.Create('a'));
+  List.Add(TWidget.Create('b'));
+
+  Enum := List.GetEnumerator;
+  while Enum.MoveNext do
+    WriteLn(TWidget(Enum.Current).Name);
+  // a
+  // b
+end;
+----
+
+== Full Example: A Simple Object Registry
+
+[source,pascal]
+----
+uses
+  Contnrs;
+
+type
+  TTask = class
+    Title: string;
+    Done: Boolean;
+    constructor Create(const ATitle: string);
+  end;
+
+constructor TTask.Create(const ATitle: string);
+begin
+  Self.Title := ATitle;
+  Self.Done := False
+end;
+
+var
+  Tasks: TObjectList;
+  T: TTask;
+  I: Integer;
+begin
+  Tasks := TObjectList.Create(True);   // list owns the TTask instances
+  try
+    Tasks.Add(TTask.Create('Write docs'));
+    Tasks.Add(TTask.Create('Review PR'));
+    Tasks.Add(TTask.Create('Ship release'));
+
+    // Mark the second task done
+    TTask(Tasks[1]).Done := True;
+
+    WriteLn('Pending tasks:');
+    for T in Tasks do
+      if not T.Done then
+        WriteLn('  - ' + T.Title);
+
+    // Remove a completed task entirely
+    I := Tasks.IndexOf(Tasks[1]);
+    if I >= 0 then
+      Tasks.Delete(I);
+
+    WriteLn('Remaining: ', Tasks.Count);   // Remaining: 2
+  finally
+    Tasks.Destroy;   // releases all remaining task references
+  end;
+end;
+----

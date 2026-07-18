@@ -1,0 +1,92 @@
+= Json.Reader Unit — API Reference
+:toc: left
+:toclevels: 3
+:source-highlighter: rouge
+:icons: font
+:sectnums:
+
+A one-function convenience facade over `Json.Parser`, for the common
+case of "parse this whole string into a JSON tree." Mirrors
+`Xml.Reader`'s `GetXML` facade over `Xml.Parser`.
+
+== Overview
+
+`GetJSON` parses a JSON document string into the `Json.Types` tree by
+driving the `Json.Parser` engine. The caller owns the returned root
+(parent-owns-child) — releasing it frees the whole tree.
+`EJSONParseError` is raised on malformed input.
+
+[source,pascal]
+----
+Root := GetJSON(S);
+// ... use Root as a TJSONData ...
+Root.Free();
+----
+
+[NOTE]
+====
+`TJSONData` and `TJSONParser` are declared in `Json.Types` and
+`Json.Parser` respectively — see those units' own reference pages for
+the full JSON value model and parser API. This page covers only the
+`Json.Reader` facade itself.
+====
+
+== Free Functions
+
+=== GetJSON
+
+Parses `AText` into a JSON tree.
+
+[source,pascal]
+----
+function GetJSON(const AText: string): TJSONData;
+----
+
+Raises `EJSONParseError` on malformed input.
+
+Internally, `GetJSON` is a thin wrapper:
+
+[source,pascal]
+----
+function GetJSON(const AText: string): TJSONData;
+var
+  P: TJSONParser;
+begin
+  P := TJSONParser.Create(AText);
+  Result := P.Parse();
+  P.Free();
+end;
+----
+
+.Example — parsing a JSON document
+[source,pascal]
+----
+uses
+  Json.Reader;
+
+var
+  Root: TJSONData;
+begin
+  Root := GetJSON('{"name":"Ada","age":36,"tags":["engineer","pioneer"]}');
+  try
+    // navigate Root using the Json.Types API
+  finally
+    Root.Free();
+  end;
+end;
+----
+
+.Example — handling malformed input
+[source,pascal]
+----
+var
+  Root: TJSONData;
+begin
+  try
+    Root := GetJSON('{"unterminated": ');
+  except
+    on E: EJSONParseError do
+      WriteLn('Failed to parse: ' + E.Message);
+  end;
+end;
+----

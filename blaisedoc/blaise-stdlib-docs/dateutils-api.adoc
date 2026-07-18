@@ -1,0 +1,552 @@
+= DateUtils Unit — API Reference
+:toc: left
+:toclevels: 3
+:source-highlighter: rouge
+:icons: font
+:sectnums:
+
+A modern date/time library for the Blaise standard library, inspired by
+Java `java.time`, Rust `chrono`, and C# `DateTimeOffset`.
+
+== Overview
+
+`DateUtils` splits date/time concerns into five distinct, immutable value
+types instead of one "god type":
+
+[cols="1,3", options="header"]
+|===
+| Type | Represents
+
+| `TDate`
+| A calendar date only — no time, no timezone.
+
+| `TTime`
+| A time of day only — no date, no timezone. Nanosecond precision.
+
+| `TDateTime`
+| A local date + time, combined — still no timezone.
+
+| `TDuration`
+| A signed span of time (nanosecond precision). Can represent "in the past".
+
+| `TInstant`
+| A single unambiguous point in time (nanoseconds since the Unix epoch, UTC).
+
+| `TTimeZoneOffset`
+| A signed, fixed UTC offset (e.g. `+05:30`, `-08:00`, or `Z`).
+|===
+
+Design principles:
+
+* All storage is `Integer`/`Int64` — no floating point, no precision loss.
+* All types are records with value semantics (not classes).
+* ISO 8601 is the only wire format used by `ToString` / `Parse*`.
+* Only UTC and fixed offsets are supported. IANA time zones and DST are
+  deferred to a later phase.
+
+Errors are raised as `EDateTimeError`, a subclass of `Exception`.
+
+== Types
+
+=== TTimeZoneOffset
+
+A signed fixed UTC offset.
+
+[source,pascal]
+----
+TTimeZoneOffset = record
+  TotalSeconds: Integer;   // +05:30 = 19800, -08:00 = -28800
+
+  function Hours: Integer;
+  function Minutes: Integer;
+  function ToString: string;   // '+05:30', '-08:00', 'Z'
+end;
+----
+
+.Example
+[source,pascal]
+----
+var
+  Off: TTimeZoneOffset;
+begin
+  Off := MakeOffset(5, 30);
+  WriteLn(Off.ToString);      // +05:30
+  WriteLn(Off.Hours);         // 5
+  WriteLn(Off.Minutes);       // 30
+end;
+----
+
+=== TDate
+
+A calendar date with no time-of-day or timezone component.
+
+[source,pascal]
+----
+TDate = record
+  Year: Integer;
+  Month: Integer;   // 1..12
+  Day: Integer;      // 1..31
+
+  function DayOfWeek: Integer;   // 1=Monday .. 7=Sunday (ISO 8601)
+  function IsLeapYear: Boolean;
+  function DaysInMonth: Integer;
+  function ToString: string;     // 'YYYY-MM-DD'
+end;
+----
+
+.Example
+[source,pascal]
+----
+var
+  D: TDate;
+begin
+  D := MakeDate(2026, 2, 14);
+  WriteLn(D.ToString);        // 2026-02-14
+  WriteLn(D.DayOfWeek);       // 6 (Saturday)
+  WriteLn(D.IsLeapYear);      // False
+  WriteLn(D.DaysInMonth);     // 28
+end;
+----
+
+=== TTime
+
+A time of day, independent of any date or timezone.
+
+[source,pascal]
+----
+TTime = record
+  Hour: Integer;         // 0..23
+  Minute: Integer;       // 0..59
+  Second: Integer;       // 0..59
+  Nanosecond: Integer;   // 0..999999999
+
+  function ToString: string;       // 'HH:MM:SS'
+  function ToStringNano: string;   // 'HH:MM:SS.nnnnnnnnn'
+end;
+----
+
+.Example
+[source,pascal]
+----
+var
+  T: TTime;
+begin
+  T := MakeTimeNano(9, 5, 3, 250000000);
+  WriteLn(T.ToString);       // 09:05:03
+  WriteLn(T.ToStringNano);   // 09:05:03.250000000
+end;
+----
+
+=== TDateTime
+
+A local combination of `TDate` and `TTime`, still without a timezone.
+
+[source,pascal]
+----
+TDateTime = record
+  Date: TDate;
+  Time: TTime;
+
+  function ToString: string;   // 'YYYY-MM-DDTHH:MM:SS'
+end;
+----
+
+.Example
+[source,pascal]
+----
+var
+  DT: TDateTime;
+begin
+  DT := MakeDateTime(MakeDate(2026, 7, 14), MakeTime(18, 30, 0));
+  WriteLn(DT.ToString);   // 2026-07-14T18:30:00
+end;
+----
+
+=== TDuration
+
+A signed span of time, stored as nanoseconds. Negative values mean
+"in the past" / a negative span.
+
+[source,pascal]
+----
+TDuration = record
+  Nanoseconds: Int64;
+
+  function TotalSeconds: Int64;
+  function TotalMilliseconds: Int64;
+  function TotalMinutes: Int64;
+  function TotalHours: Int64;
+  function TotalDays: Int64;
+  function IsNegative: Boolean;
+  function Abs: TDuration;
+  function ToString: string;   // ISO 8601, e.g. 'PT3H25M10S'
+end;
+----
+
+.Example
+[source,pascal]
+----
+var
+  Dur: TDuration;
+begin
+  Dur := MakeDurationSeconds(12310);
+  WriteLn(Dur.ToString);          // PT3H25M10S
+  WriteLn(Dur.TotalMinutes);      // 205
+  WriteLn(Dur.IsNegative);        // False
+end;
+----
+
+=== TInstant
+
+A unique, unambiguous UTC point in time — nanoseconds since the Unix
+epoch (`1970-01-01T00:00:00Z`).
+
+[source,pascal]
+----
+TInstant = record
+  Nanoseconds: Int64;
+
+  function ToUtcDateTime: TDateTime;
+  function ToLocalDateTime(Offset: TTimeZoneOffset): TDateTime;
+  function ToUnixSeconds: Int64;
+  function ToUnixMillis: Int64;
+  function ToString: string;
+  function ToStringOffset(Offset: TTimeZoneOffset): string;
+  function Subtract(Other: TInstant): TDuration;
+  function AddDuration(D: TDuration): TInstant;
+  function SubtractDuration(D: TDuration): TInstant;
+  function IsAfter(Other: TInstant): Boolean;
+  function IsBefore(Other: TInstant): Boolean;
+  function Equals(Other: TInstant): Boolean;
+end;
+----
+
+.Example
+[source,pascal]
+----
+var
+  Now, Later: TInstant;
+  Elapsed: TDuration;
+  Tokyo: TTimeZoneOffset;
+begin
+  Now := InstantNow();
+  Later := Now.AddDuration(MakeDurationSeconds(3600));
+
+  Elapsed := Later.Subtract(Now);
+  WriteLn(Elapsed.ToString);          // PT1H
+
+  Tokyo := MakeOffset(9, 0);
+  WriteLn(Later.ToStringOffset(Tokyo));
+
+  WriteLn(Later.IsAfter(Now));        // True
+end;
+----
+
+== Construction Functions
+
+[cols="3,1", options="header"]
+|===
+| Function | Returns
+
+| `MakeDate(Year, Month, Day: Integer)`
+| `TDate`
+
+| `MakeTime(Hour, Minute, Second: Integer)`
+| `TTime`
+
+| `MakeTimeNano(Hour, Minute, Second, Nanosecond: Integer)`
+| `TTime`
+
+| `MakeDateTime(ADate: TDate; ATime: TTime)`
+| `TDateTime`
+
+| `MakeDurationSeconds(Seconds: Int64)`
+| `TDuration`
+
+| `MakeDurationMillis(Millis: Int64)`
+| `TDuration`
+
+| `MakeDurationNanos(Nanos: Int64)`
+| `TDuration`
+
+| `MakeInstantUnix(Seconds: Int64)`
+| `TInstant`
+
+| `MakeInstantUnixMillis(Millis: Int64)`
+| `TInstant`
+
+| `MakeInstantUtc(ADate: TDate; ATime: TTime)`
+| `TInstant`
+
+| `MakeInstantLocal(ADate: TDate; ATime: TTime; Offset: TTimeZoneOffset)`
+| `TInstant`
+
+| `MakeOffset(Hours, Minutes: Integer)`
+| `TTimeZoneOffset`
+|===
+
+.Example
+[source,pascal]
+----
+var
+  D: TDate;
+  T: TTime;
+  DT: TDateTime;
+  I: TInstant;
+  Off: TTimeZoneOffset;
+begin
+  D   := MakeDate(2026, 12, 25);
+  T   := MakeTime(8, 0, 0);
+  DT  := MakeDateTime(D, T);
+  Off := MakeOffset(-8, 0);
+  I   := MakeInstantLocal(D, T, Off);   // 08:00 Pacific -> UTC instant
+
+  WriteLn(I.ToString);                  // 2026-12-25T16:00:00Z
+end;
+----
+
+== Current Time
+
+[cols="3,1", options="header"]
+|===
+| Function | Returns
+
+| `InstantNow`
+| `TInstant` — the current UTC instant.
+
+| `LocalNow(Offset: TTimeZoneOffset)`
+| `TDateTime` — current time shifted to the given offset.
+
+| `SystemOffset`
+| `TTimeZoneOffset` — the host system's local UTC offset.
+|===
+
+.Example
+[source,pascal]
+----
+var
+  Local: TDateTime;
+begin
+  Local := LocalNow(SystemOffset());
+  WriteLn('Local time is: ' + Local.ToString);
+end;
+----
+
+== Parsing
+
+All parsing functions accept ISO 8601 strings and raise `EDateTimeError`
+on malformed input.
+
+[cols="3,1", options="header"]
+|===
+| Function | Returns
+
+| `ParseDate(const S: string)`
+| `TDate` — expects `'YYYY-MM-DD'`.
+
+| `ParseTime(const S: string)`
+| `TTime` — expects `'HH:MM:SS'`, optional `.nnnnnnnnn` fraction.
+
+| `ParseDateTime(const S: string)`
+| `TDateTime` — expects `'YYYY-MM-DDTHH:MM:SS'`, optional fraction.
+
+| `ParseInstant(const S: string)`
+| `TInstant` — expects a full ISO 8601 timestamp with `Z` or `±HH:MM`.
+
+| `ParseDuration(const S: string)`
+| `TDuration` — expects ISO 8601 duration form, e.g. `'PT1H30M'`.
+
+| `ParseOffset(const S: string)`
+| `TTimeZoneOffset` — expects `'Z'` or `'±HH:MM'`.
+|===
+
+.Example
+[source,pascal]
+----
+var
+  D: TDate;
+  I: TInstant;
+  Dur: TDuration;
+begin
+  D   := ParseDate('2026-07-14');
+  I   := ParseInstant('2026-07-14T18:30:00+02:00');
+  Dur := ParseDuration('PT2H15M');
+
+  WriteLn(D.ToString);      // 2026-07-14
+  WriteLn(I.ToUnixSeconds); // Unix timestamp
+  WriteLn(Dur.TotalMinutes);// 135
+end;
+----
+
+.Malformed input raises EDateTimeError
+[source,pascal]
+----
+try
+  ParseDate('14-07-2026');   // wrong format
+except
+  on E: EDateTimeError do
+    WriteLn('Failed to parse: ' + E.Message);
+end;
+----
+
+== Date Arithmetic
+
+[cols="3,1", options="header"]
+|===
+| Function | Returns
+
+| `DateAddDays(D: TDate; Days: Integer)`
+| `TDate`
+
+| `DateAddMonths(D: TDate; Months: Integer)`
+| `TDate` — day is clamped to the last valid day of the target month.
+
+| `DateAddYears(D: TDate; Years: Integer)`
+| `TDate`
+
+| `DateDiffDays(A, B: TDate)`
+| `Integer` — number of days from `A` to `B`.
+|===
+
+.Example
+[source,pascal]
+----
+var
+  D, Next: TDate;
+begin
+  D := MakeDate(2026, 1, 31);
+
+  Next := DateAddMonths(D, 1);
+  WriteLn(Next.ToString);          // 2026-02-28 (clamped, not leap year)
+
+  Next := DateAddDays(D, 10);
+  WriteLn(Next.ToString);          // 2026-02-10
+
+  WriteLn(DateDiffDays(D, Next));  // 10
+end;
+----
+
+== Comparison Functions
+
+[cols="3,1", options="header"]
+|===
+| Function | Returns
+
+| `DateEquals(A, B: TDate)`
+| `Boolean`
+
+| `DateBefore(A, B: TDate)`
+| `Boolean`
+
+| `DateAfter(A, B: TDate)`
+| `Boolean`
+
+| `DurationAdd(A, B: TDuration)`
+| `TDuration`
+
+| `DurationSubtract(A, B: TDuration)`
+| `TDuration`
+
+| `DurationNegate(D: TDuration)`
+| `TDuration`
+|===
+
+.Example
+[source,pascal]
+----
+var
+  A, B: TDate;
+  D1, D2: TDuration;
+begin
+  A := MakeDate(2026, 1, 1);
+  B := MakeDate(2026, 12, 31);
+
+  WriteLn(DateBefore(A, B));   // True
+  WriteLn(DateAfter(A, B));    // False
+  WriteLn(DateEquals(A, A));   // True
+
+  D1 := MakeDurationSeconds(3600);
+  D2 := MakeDurationSeconds(900);
+  WriteLn(DurationAdd(D1, D2).ToString);       // PT1H15M
+  WriteLn(DurationSubtract(D1, D2).ToString);  // PT45M
+  WriteLn(DurationNegate(D1).ToString);        // PT1H (Abs used for display)
+end;
+----
+
+== Utility Functions
+
+[cols="3,1", options="header"]
+|===
+| Function | Returns
+
+| `IsLeapYear(Year: Integer)`
+| `Boolean`
+
+| `DaysInMonth(Year, Month: Integer)`
+| `Integer`
+
+| `DayOfWeek(D: TDate)`
+| `Integer` — 1=Monday .. 7=Sunday (ISO 8601)
+|===
+
+.Example
+[source,pascal]
+----
+begin
+  WriteLn(IsLeapYear(2028));           // True
+  WriteLn(DaysInMonth(2026, 2));       // 28
+  WriteLn(DayOfWeek(MakeDate(2026, 7, 14)));  // 2 (Tuesday)
+end;
+----
+
+== Full Example: Booking a Meeting Across Time Zones
+
+[source,pascal]
+----
+uses
+  DateUtils;
+
+var
+  MeetingLocal: TDateTime;
+  NyOffset, LondonOffset: TTimeZoneOffset;
+  MeetingInstant: TInstant;
+begin
+  // Meeting is 09:00 New York time on 2026-09-01
+  NyOffset := MakeOffset(-4, 0);
+  MeetingLocal := MakeDateTime(MakeDate(2026, 9, 1), MakeTime(9, 0, 0));
+  MeetingInstant := MakeInstantLocal(MeetingLocal.Date, MeetingLocal.Time, NyOffset);
+
+  WriteLn('UTC:     ' + MeetingInstant.ToString);
+
+  // Convert to London time for the other attendee
+  LondonOffset := MakeOffset(1, 0);   // BST
+  WriteLn('London:  ' + MeetingInstant.ToStringOffset(LondonOffset));
+
+  // How far away is the meeting?
+  WriteLn('Until meeting: ' + MeetingInstant.Subtract(InstantNow()).ToString);
+end;
+----
+
+== Error Handling
+
+All parsing and scanning functions raise `EDateTimeError` (a subclass of
+`Exception`) on malformed input — for example, a missing separator, a
+non-digit character where a digit was expected, or a truncated string.
+
+[source,pascal]
+----
+type
+  EDateTimeError = class(Exception);
+----
+
+Catch it like any other exception:
+
+[source,pascal]
+----
+try
+  ParseInstant('not-a-timestamp');
+except
+  on E: EDateTimeError do
+    WriteLn('Invalid timestamp: ' + E.Message);
+end;
+----

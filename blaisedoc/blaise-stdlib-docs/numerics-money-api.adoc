@@ -1,0 +1,424 @@
+= Numerics.Money Unit — API Reference
+:toc: left
+:toclevels: 3
+:source-highlighter: rouge
+:icons: font
+:sectnums:
+
+Currency-aware monetary amounts. `TMoney` is a thin value-type wrapper
+that layers an ISO-4217 currency tag onto an exact `TDecimal` amount
+(see link:numerics-decimal-api.html[Numerics.Decimal]).
+
+== Overview
+
+The numeric core (`TDecimal`) stays currency- and locale-agnostic;
+`TMoney` is the money type — matching the universal pattern of Moneta
+(Java), the `money` gem (Ruby), and `rusty-money` (Rust), each of
+which wraps a decimal rather than baking currency into the numeric
+type.
+
+=== Design
+
+* *Currency* is an ISO-4217 alphabetic code held as a string (`'USD'`,
+  `'JPY'`, `'KWD'`). This is open-ended: a code the built-in registry
+  doesn't know is still accepted and uses the fallback scale (`2`).
+  The code is upper-cased on construction, so `'usd'` and `'USD'` are
+  the same currency.
+* *Scale normalization.* Each currency has a default minor-unit
+  scale: `JPY` 0, `USD` 2, `KWD` 3, fallback 2 for unknown codes.
+  Every `TMoney` is *normalized* to its currency's scale on
+  construction and after every arithmetic operation. The default
+  rounding is banker's (`rmHalfEven`) — so
+  `MoneyFromStr('1.005', 'USD')` stores `1.00`, and a JPY amount never
+  carries a fraction. Each constructor and rounding-sensitive
+  operation also has overloads taking an explicit `TRoundingMode` or
+  a custom `IRoundingStrategy` (the same eight modes + extension
+  point as `TDecimal`), so the rounding policy can be swapped per
+  call — e.g. `rmHalfUp` for a jurisdiction that rounds halves up, or
+  a strategy implementing Swedish/Swiss 0.05 cash rounding.
+* *Currency safety.* Mismatched-currency arithmetic raises
+  `EMoneyMismatch`. `Add`, `Subtract`, and `Compare` across different
+  currencies are programming errors, not silent conversions — there
+  is no exchange-rate concept here; that's a higher policy layer.
+* *Immutable value semantics.* Every operation returns a fresh
+  `TMoney` and never mutates `Self`. Scaling by a quantity
+  (`Multiply`) keeps the same currency and re-normalizes to its
+  scale.
+
+Construction uses free functions (`MoneyFromStr` / `MoneyFromDecimal`
+/ `MoneyFromInt` / `MoneyZero`), following the `Numerics.Decimal` and
+`DateUtils` house style. Queries and arithmetic are record methods.
+
+== Types
+
+=== Errors
+
+[source,pascal]
+----
+EMoneyError = class(Exception);
+EMoneyMismatch = class(EMoneyError);
+----
+
+[cols="2,4", options="header"]
+|===
+| Type | Raised when
+
+| `EMoneyError`
+| Base class for all errors raised by this unit.
+
+| `EMoneyMismatch`
+| An operation combines two `TMoney` values of different currencies
+  (e.g. USD + JPY).
+|===
+
+=== TMoney
+
+A monetary amount in a single currency. The amount is always held at
+the currency's default scale (banker's-rounded on every operation by
+default).
+
+[source,pascal]
+----
+TMoney = record
+  function Amount: TDecimal;
+  function CurrencyCode: string;
+  function IsZero: Boolean;
+  function Sign: Integer;
+
+  function Add(const B: TMoney): TMoney; overload;
+  function Add(const B: TMoney; Mode: TRoundingMode): TMoney; overload;
+  function Add(const B: TMoney;
+               const Strategy: IRoundingStrategy): TMoney; overload;
+
+  function Subtract(const B: TMoney): TMoney; overload;
+  function Subtract(const B: TMoney; Mode: TRoundingMode): TMoney; overload;
+  function Subtract(const B: TMoney;
+                     const Strategy: IRoundingStrategy): TMoney; overload;
+
+  function Negate: TMoney;
+
+  function Multiply(const Factor: TDecimal): TMoney; overload;
+  function Multiply(const Factor: TDecimal; Mode: TRoundingMode): TMoney; overload;
+  function Multiply(const Factor: TDecimal;
+                     const Strategy: IRoundingStrategy): TMoney; overload;
+  function MultiplyInt(Quantity: Integer): TMoney;
+
+  function Compare(const B: TMoney): Integer;
+  function Equals(const B: TMoney): Boolean;
+
+  function AmountString: string;
+  function ToString: string;
+end;
+----
+
+==== Queries
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `Amount`
+| The amount as an exact `TDecimal` (at the currency scale).
+
+| `CurrencyCode`
+| The ISO-4217 currency code (upper-case).
+
+| `IsZero`
+| `True` iff the amount is zero.
+
+| `Sign`
+| `-1` if negative, `0` if zero, `+1` if positive.
+|===
+
+.Example
+[source,pascal]
+----
+var
+  M: TMoney;
+begin
+  M := MoneyFromStr('-19.99', 'usd');
+  WriteLn(M.CurrencyCode);   // USD  (upper-cased)
+  WriteLn(M.Sign);           // -1
+  WriteLn(M.Amount.ToString);// -19.99
+end;
+----
+
+==== Arithmetic
+
+All of `Add`, `Subtract`, and `Multiply` come in three forms: a
+no-argument overload (banker's rounding, `rmHalfEven`), a
+`TRoundingMode` overload, and an `IRoundingStrategy` overload.
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `Add(B)` / `Add(B, Mode)` / `Add(B, Strategy)`
+| `Self + B`. Both must be the same currency; result is normalized to
+  that currency's scale. Raises `EMoneyMismatch` if the currencies
+  differ.
+
+| `Subtract(B)` / `Subtract(B, Mode)` / `Subtract(B, Strategy)`
+| `Self - B`. Same currency requirement and rounding control as
+  `Add`.
+
+| `Negate`
+| `-Self`, same currency and scale. Exact — no rounding needed.
+
+| `Multiply(Factor)` / `Multiply(Factor, Mode)` / `Multiply(Factor, Strategy)`
+| Scales the amount by a dimensionless `TDecimal` factor (e.g. unit
+  price × quantity, or amount × tax rate), re-normalizing to the
+  currency scale. Currency is preserved.
+
+| `MultiplyInt(Quantity)`
+| Scales by an integer quantity. Exact at the currency scale (an
+  integer multiply introduces no new fraction digits), so no
+  rounding mode is needed.
+|===
+
+.Example — same-currency arithmetic
+[source,pascal]
+----
+var
+  Price, Tax, Total: TMoney;
+  TaxRate: TDecimal;
+begin
+  Price := MoneyFromStr('19.99', 'USD');
+  TaxRate := DecFromStr('0.0825');
+
+  Tax := Price.Multiply(TaxRate);         // banker's rounding by default
+  WriteLn(Tax.ToString);                  // 1.65 USD
+
+  Total := Price.Add(Tax);
+  WriteLn(Total.ToString);                // 21.64 USD
+
+  WriteLn(Price.MultiplyInt(3).ToString); // 59.97 USD
+end;
+----
+
+.Example — currency mismatch raises
+[source,pascal]
+----
+var
+  Dollars, Yen: TMoney;
+begin
+  Dollars := MoneyFromInt(10, 'USD');
+  Yen := MoneyFromInt(1000, 'JPY');
+  try
+    Dollars.Add(Yen);
+  except
+    on E: EMoneyMismatch do
+      WriteLn('Error: ' + E.Message);
+      // Numerics.Money: cannot add different currencies (USD and JPY)
+  end;
+end;
+----
+
+.Example — custom rounding strategy on an operation
+[source,pascal]
+----
+var
+  Bill: TMoney;
+  Split: TMoney;
+begin
+  Bill := MoneyFromStr('10.00', 'USD');
+  Split := Bill.Multiply(DecFromStr('0.3333'), rmHalfUp);
+  WriteLn(Split.ToString);   // 3.33 USD
+end;
+----
+
+==== Comparison and equality
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `Compare(B)`
+| Three-way comparison by amount. Both must be the same currency;
+  raises `EMoneyMismatch` if they differ. Returns `-1` / `0` / `+1`.
+
+| `Equals(B)`
+| Value equality: same currency *and* equal amount. Unlike `Compare`,
+  does *not* raise on a currency mismatch — two amounts in different
+  currencies are simply not equal.
+|===
+
+.Example
+[source,pascal]
+----
+var
+  A, B: TMoney;
+begin
+  A := MoneyFromStr('10.00', 'USD');
+  B := MoneyFromInt(10, 'JPY');
+
+  WriteLn(A.Equals(B));   // False (different currency; no exception)
+
+  try
+    A.Compare(B);          // raises
+  except
+    on E: EMoneyMismatch do
+      WriteLn('Cannot compare across currencies');
+  end;
+end;
+----
+
+==== Formatting
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `AmountString`
+| The bare amount as a plain decimal string at the currency scale,
+  with no currency code (e.g. `'19.99'`). Never scientific notation.
+
+| `ToString`
+| Amount followed by a space and the currency code (e.g.
+  `'19.99 USD'`).
+|===
+
+.Example
+[source,pascal]
+----
+var
+  M: TMoney;
+begin
+  M := MoneyFromInt(5, 'JPY');
+  WriteLn(M.AmountString);   // 5      (JPY has scale 0)
+  WriteLn(M.ToString);       // 5 JPY
+end;
+----
+
+== Construction (Free Functions)
+
+Follows the `Numerics.Decimal` and `DateUtils` house style. All four
+constructors normalize the amount to the currency's default scale;
+`MoneyFromStr` and `MoneyFromDecimal` have `Mode`/`Strategy` overloads
+in addition to the default (banker's rounding).
+
+[source,pascal]
+----
+function MoneyFromStr(const AAmount, ACurrency: string): TMoney; overload;
+function MoneyFromStr(const AAmount, ACurrency: string;
+                       Mode: TRoundingMode): TMoney; overload;
+function MoneyFromStr(const AAmount, ACurrency: string;
+                       const Strategy: IRoundingStrategy): TMoney; overload;
+
+function MoneyFromDecimal(const AAmount: TDecimal;
+                           const ACurrency: string): TMoney; overload;
+function MoneyFromDecimal(const AAmount: TDecimal; const ACurrency: string;
+                           Mode: TRoundingMode): TMoney; overload;
+function MoneyFromDecimal(const AAmount: TDecimal; const ACurrency: string;
+                           const Strategy: IRoundingStrategy): TMoney; overload;
+
+function MoneyFromInt(AAmount: Integer; const ACurrency: string): TMoney;
+function MoneyZero(const ACurrency: string): TMoney;
+----
+
+[cols="2,4", options="header"]
+|===
+| Function | Behavior
+
+| `MoneyFromStr(AAmount, ACurrency[, Mode\|Strategy])`
+| Parses `AAmount` exactly (see `DecFromStr`), then normalizes to
+  `ACurrency`'s default scale. Raises `EDecimalParse` if `AAmount` is
+  malformed.
+
+| `MoneyFromDecimal(AAmount, ACurrency[, Mode\|Strategy])`
+| Wraps an existing `TDecimal` amount with a currency tag, normalized
+  to the currency's scale.
+
+| `MoneyFromInt(AAmount, ACurrency)`
+| Whole-unit integer amount (e.g. `MoneyFromInt(5, 'USD')` = `5.00
+  USD`). An integer is exact at any currency scale, so no rounding
+  mode is needed.
+
+| `MoneyZero(ACurrency)`
+| A zero amount in the given currency, at the currency's scale.
+|===
+
+.Example
+[source,pascal]
+----
+var
+  A, B, C, Z: TMoney;
+begin
+  A := MoneyFromStr('1.005', 'USD');        // rmHalfEven default
+  WriteLn(A.ToString);                      // 1.00 USD
+
+  B := MoneyFromDecimal(DecFromStr('19.99'), 'eur');
+  WriteLn(B.ToString);                      // 19.99 EUR
+
+  C := MoneyFromInt(5, 'JPY');
+  WriteLn(C.ToString);                      // 5 JPY
+
+  Z := MoneyZero('KWD');
+  WriteLn(Z.ToString);                      // 0.000 KWD
+end;
+----
+
+== Currency Registry
+
+[source,pascal]
+----
+function CurrencyScale(const ACurrency: string): Integer;
+----
+
+The default minor-unit scale (fraction-digit count) for a currency
+code. The lookup is case-insensitive.
+
+[cols="1,3", options="header"]
+|===
+| Scale | Currencies
+
+| 0
+| `JPY`, `KRW`, `CLP`, `ISK`, `VND`, `XAF`, `XOF`, `PYG`
+
+| 3
+| `KWD`, `BHD`, `OMR`, `TND`, `JOD`, `IQD`, `LYD`
+
+| 2 (fallback)
+| Everything else, including `USD`, `EUR`, `GBP`, and any code the
+  registry doesn't recognize
+|===
+
+.Example
+[source,pascal]
+----
+begin
+  WriteLn(CurrencyScale('JPY'));   // 0
+  WriteLn(CurrencyScale('kwd'));   // 3  (case-insensitive)
+  WriteLn(CurrencyScale('USD'));   // 2
+  WriteLn(CurrencyScale('XYZ'));   // 2  (unknown code -> fallback)
+end;
+----
+
+== Full Example: Shopping Cart Totals
+
+[source,pascal]
+----
+uses
+  Numerics.Decimal, Numerics.Money;
+
+var
+  Item1, Item2, Subtotal, Tax, Total: TMoney;
+  TaxRate: TDecimal;
+begin
+  Item1 := MoneyFromStr('12.50', 'USD').MultiplyInt(3);   // 3x $12.50
+  Item2 := MoneyFromStr('7.99', 'USD');
+
+  Subtotal := Item1.Add(Item2);
+  WriteLn('Subtotal: ', Subtotal.ToString);   // Subtotal: 45.49 USD
+
+  TaxRate := DecFromStr('0.0825');
+  Tax := Subtotal.Multiply(TaxRate);          // banker's rounding
+  WriteLn('Tax: ', Tax.ToString);             // Tax: 3.75 USD
+
+  Total := Subtotal.Add(Tax);
+  WriteLn('Total: ', Total.ToString);         // Total: 49.24 USD
+
+  if Total.Compare(MoneyFromStr('49.24', 'USD')) = 0 then
+    WriteLn('Matches expected total');
+end;
+----

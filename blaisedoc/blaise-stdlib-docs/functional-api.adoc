@@ -1,0 +1,269 @@
+= Functional Unit — API Reference
+:toc: left
+:toclevels: 3
+:source-highlighter: rouge
+:icons: font
+:sectnums:
+
+A small vocabulary of canonical closure-typed aliases shared by the
+Blaise standard library and user code, mirroring Delphi's
+`System.SysUtils` functional types. Defined as part of the anonymous
+methods design (Phase 8).
+
+== Overview
+
+`Functional` defines four generic closure aliases plus one adapter
+class that bridges closures into the comparer world used by
+`Generics.Defaults`:
+
+[cols="1,3", options="header"]
+|===
+| Type | Purpose
+
+| `TFunc<T, R>`
+| One-argument function closure: `R := F(Arg)`.
+
+| `TFunc2<T1, T2, R>`
+| Two-argument function closure — the accumulator shape used by
+  `TList<T>.Reduce`.
+
+| `TPredicate<T>`
+| Boolean test closure: `True` iff a value satisfies some condition.
+
+| `TAction<T>`
+| One-argument procedure closure — a side-effecting callback.
+
+| `TComparison<T>`
+| Three-way ordering closure: negative / zero / positive.
+
+| `TDelegatedComparer<T>`
+| Adapter class that wraps a `TComparison<T>` closure as an
+  `IComparer<T>`.
+|===
+
+This unit depends on `Generics.Defaults` for `IComparer<T>`.
+
+== Types
+
+=== TFunc<T, R>
+
+A one-argument function closure.
+
+[source,pascal]
+----
+TFunc<T, R> = reference to function(AArg: T): R;
+----
+
+.Example
+[source,pascal]
+----
+var
+  Square: TFunc<Integer, Integer>;
+begin
+  Square := function(AArg: Integer): Integer
+            begin
+              Result := AArg * AArg
+            end;
+
+  WriteLn(Square(7));   // 49
+end;
+----
+
+=== TFunc2<T1, T2, R>
+
+A two-argument function closure. This is the accumulator shape expected
+by `TList<T>.Reduce`.
+
+[source,pascal]
+----
+TFunc2<T1, T2, R> = reference to function(AArg1: T1; AArg2: T2): R;
+----
+
+.Example — summing a list with Reduce
+[source,pascal]
+----
+var
+  Numbers: TList<Integer>;
+  Sum: TFunc2<Integer, Integer, Integer>;
+  Total: Integer;
+begin
+  Numbers := TList<Integer>.Create([1, 2, 3, 4, 5]);
+
+  Sum := function(AAcc, AValue: Integer): Integer
+         begin
+           Result := AAcc + AValue
+         end;
+
+  Total := Numbers.Reduce(Sum, 0);
+  WriteLn(Total);   // 15
+end;
+----
+
+=== TPredicate<T>
+
+A boolean test closure — `True` iff `AValue` satisfies the predicate.
+
+[source,pascal]
+----
+TPredicate<T> = reference to function(AValue: T): Boolean;
+----
+
+.Example — filtering a list
+[source,pascal]
+----
+var
+  Numbers: TList<Integer>;
+  IsEven: TPredicate<Integer>;
+begin
+  Numbers := TList<Integer>.Create([1, 2, 3, 4, 5, 6]);
+
+  IsEven := function(AValue: Integer): Boolean
+            begin
+              Result := AValue mod 2 = 0
+            end;
+
+  WriteLn(Numbers.Filter(IsEven).Count);   // 3
+end;
+----
+
+=== TAction<T>
+
+A one-argument procedure closure — a side-effecting callback with no
+return value.
+
+[source,pascal]
+----
+TAction<T> = reference to procedure(AValue: T);
+----
+
+.Example — iterating with ForEach
+[source,pascal]
+----
+var
+  Names: TList<string>;
+  PrintName: TAction<string>;
+begin
+  Names := TList<string>.Create(['Ada', 'Grace', 'Alan']);
+
+  PrintName := procedure(AValue: string)
+               begin
+                 WriteLn('Hello, ' + AValue)
+               end;
+
+  Names.ForEach(PrintName);
+  // Hello, Ada
+  // Hello, Grace
+  // Hello, Alan
+end;
+----
+
+=== TComparison<T>
+
+A three-way ordering closure: negative if `ALeft < ARight`, zero if
+equal, positive if `ALeft > ARight`.
+
+[source,pascal]
+----
+TComparison<T> = reference to function(ALeft, ARight: T): Integer;
+----
+
+.Example — sorting strings by length
+[source,pascal]
+----
+var
+  Words: TList<string>;
+  ByLength: TComparison<string>;
+begin
+  Words := TList<string>.Create(['banana', 'fig', 'kiwi', 'apple']);
+
+  ByLength := function(ALeft, ARight: string): Integer
+              begin
+                Result := Length(ALeft) - Length(ARight)
+              end;
+
+  Words.Sort(ByLength);
+  // fig, kiwi, apple, banana
+end;
+----
+
+=== TDelegatedComparer<T>
+
+Adapts a `TComparison<T>` closure into an `IComparer<T>`, so
+closure-based orderings can be passed to any API that expects a
+`Generics.Defaults` comparer. The comparer holds a strong reference to
+the closure — and thus its captured environment — for its own
+lifetime.
+
+[source,pascal]
+----
+TDelegatedComparer<T> = class(IComparer<T>)
+public
+  constructor Create(AComparison: TComparison<T>);
+  function Compare(A, B: T): Integer;
+end;
+----
+
+.Example — bridging a closure into a comparer-taking API
+[source,pascal]
+----
+var
+  ByLength: TComparison<string>;
+  Comparer: IComparer<string>;
+  SortedSet: TSortedList<string>;
+begin
+  ByLength := function(ALeft, ARight: string): Integer
+              begin
+                Result := Length(ALeft) - Length(ARight)
+              end;
+
+  Comparer := TDelegatedComparer<string>.Create(ByLength);
+
+  // Any API expecting IComparer<string> can now use the closure-based
+  // ordering defined above.
+  SortedSet := TSortedList<string>.Create(Comparer);
+  SortedSet.Add('elderberry');
+  SortedSet.Add('kiwi');
+  SortedSet.Add('fig');
+  // Iterates in length order: fig, kiwi, elderberry
+end;
+----
+
+== Full Example: Composing Closures
+
+[source,pascal]
+----
+uses
+  Functional, Generics.Defaults;
+
+var
+  People: TList<string>;
+  StartsWithA: TPredicate<string>;
+  ShoutIt: TAction<string>;
+  ByLength: TComparison<string>;
+begin
+  People := TList<string>.Create(['Ada', 'Bob', 'Amelia', 'Alan', 'Grace']);
+
+  // Keep only names starting with 'A'
+  StartsWithA := function(AValue: string): Boolean
+                 begin
+                   Result := (Length(AValue) > 0) and (AValue[1] = 'A')
+                 end;
+
+  // Sort the survivors by length
+  ByLength := function(ALeft, ARight: string): Integer
+              begin
+                Result := Length(ALeft) - Length(ARight)
+              end;
+
+  // Print each one
+  ShoutIt := procedure(AValue: string)
+             begin
+               WriteLn(UpperCase(AValue) + '!')
+             end;
+
+  People.Filter(StartsWithA).Sort(ByLength).ForEach(ShoutIt);
+  // ADA!
+  // ALAN!
+  // AMELIA!
+end;
+----

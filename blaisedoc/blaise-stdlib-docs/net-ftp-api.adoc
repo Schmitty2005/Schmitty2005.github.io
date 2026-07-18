@@ -1,0 +1,328 @@
+= Net.Ftp Unit — API Reference
+:toc: left
+:toclevels: 3
+:source-highlighter: rouge
+:icons: font
+:sectnums:
+
+An FTP *client* (RFC 959), the counterpart to
+link:net-ftp-server-api.html[Net.Ftp.Server]. Part of the "L5 FTP
+wave" — built on `Net.Tcp`.
+
+== Overview
+
+FTP is a two-connection protocol: a persistent *control* connection
+carrying text commands and 3-digit reply codes (the same reply shape
+as SMTP — reply parsing is reused from `Net.Mail.Reply.ReadSmtpReply`),
+and a short-lived *data* connection per transfer.
+
+`TFtpClient` drives *passive* mode (the firewall-friendly one): for a
+transfer it
+
+. sends `PASV`, parses the `227` reply's `(h1,h2,h3,h4,p1,p2)` tuple,
+. dials a fresh data connection to `h1.h2.h3.h4:(p1*256+p2)`,
+. issues the transfer command (`RETR`/`STOR`/`LIST`/`NLST`) on the
+  *control* connection,
+. moves bytes over the *data* connection,
+. and reads the `150` (transfer starting) and `226` (transfer
+  complete) replies on the control connection.
+
+Reply-code parsing reuses `ReadSmtpReply`: an FTP reply is a 3-digit
+code, a separator (`-` continues a multi-line reply, ` ` ends it),
+then text. A multi-line reply (`"230-...\r\n...\r\n230 ok"`) ends on
+the `"230 "` line.
+
+[IMPORTANT]
+====
+* *Passive mode only* — active/`PORT` mode is deferred.
+* *Numeric IPv4 only* — DNS resolution is deferred.
+* *Plaintext only* — FTPS (implicit `990` / explicit `AUTH TLS`) is
+  deferred (would pull in libssl → external linker).
+* *Native backend only* (`Net.Tcp` → `async.io`).
+====
+
+== Types
+
+=== EFtpError
+
+[source,pascal]
+----
+EFtpError = class(Exception)
+end;
+----
+
+Declared for FTP-specific error signaling. Note that the current
+`TFtpClient` implementation mostly reports failure via `Boolean`
+return values rather than raising this — check each method's return
+value (and `LastCode`/`LastText` for the underlying server reply).
+
+=== TFtpClient
+
+[source,pascal]
+----
+TFtpClient = class
+public
+  constructor Create;
+  destructor Destroy; override;
+
+  function Connect(const AHostIp: string; APort: UInt16): Boolean;
+  procedure Attach(AConn: TTcpConn);
+  function Login(const AUser: string; const APass: string): Boolean;
+
+  function BinaryMode: Boolean;
+  function Cwd(const ADir: string): Boolean;
+  function Pwd(out APath: string): Boolean;
+
+  function List(const ADir: string; out AListing: string): Boolean;
+  function ListDetailed(const ADir: string; out AListing: string): Boolean;
+  function Retrieve(const ARemotePath: string; out AData: string): Boolean;
+  function Store(const ARemotePath: string; const AData: string): Boolean;
+  function Delete(const ARemotePath: string): Boolean;
+
+  function Quit: Boolean;
+
+  property LastCode: Integer read FLastCode;
+  property LastText: string read FLastText;
+  property Ctrl: TTcpConn read FCtrl;
+end;
+----
+
+==== Connecting and authenticating
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `Connect(AHostIp, APort)`
+| Dials a numeric host on `APort` (`21` is the conventional FTP
+  control port) and reads the `220` greeting. `True` on success.
+
+| `Attach(AConn)`
+| Adopts an already-connected control connection instead of dialing
+  one — used by tests, or to layer FTPS on top by handing in a
+  pre-negotiated TLS-wrapped connection.
+
+| `Login(AUser, APass)`
+| Sends `USER` then `PASS`, handling both the `331` (password
+  required) → `230` (logged in) flow and a direct `230` response to
+  `USER` (no password required, e.g. anonymous FTP). `True` on
+  success.
+|===
+
+.Example — connecting and logging in
+[source,pascal]
+----
+uses
+  Net.Ftp;
+
+var
+  Client: TFtpClient;
+begin
+  Client := TFtpClient.Create();
+  if not Client.Connect('192.168.1.10', 21) then
+  begin
+    WriteLn('Failed to connect');
+    Exit;
+  end;
+
+  if not Client.Login('demo', 'demo123') then
+  begin
+    WriteLn('Login failed: ', Client.LastCode, ' ', Client.LastText);
+    Exit;
+  end;
+
+  WriteLn('Connected and logged in.');
+end;
+----
+
+==== Navigation and mode
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `BinaryMode`
+| Sends `TYPE I` to switch to binary (image) transfer mode. `True` on
+  `200`. Should be called before transferring non-text files.
+
+| `Cwd(ADir)`
+| Sends `CWD ADir`. `True` on `250`.
+
+| `Pwd(out APath)`
+| Sends `PWD`, extracts the quoted path from the `257` reply text into
+  `APath`. `True` on `257`.
+|===
+
+.Example
+[source,pascal]
+----
+var
+  Path: string;
+begin
+  Client.BinaryMode();
+  Client.Cwd('/uploads');
+
+  if Client.Pwd(Path) then
+    WriteLn('Now in: ', Path);   // Now in: /uploads
+end;
+----
+
+==== Directory listings
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `List(ADir, out AListing)`
+| `NLST` (bare file names, one per line) over a fresh `PASV` data
+  connection. `ADir = ''` lists the current directory.
+
+| `ListDetailed(ADir, out AListing)`
+| `LIST` (full `ls`-style listing, format server-dependent) over a
+  fresh `PASV` data connection.
+|===
+
+.Example
+[source,pascal]
+----
+var
+  Names, Detailed: string;
+begin
+  if Client.List('', Names) then
+    WriteLn(Names);
+  // readme.txt
+  // data.csv
+
+  if Client.ListDetailed('', Detailed) then
+    WriteLn(Detailed);
+  // -rw-r--r-- 1 ftp ftp 1234 Jul 14 10:00 readme.txt
+  // -rw-r--r-- 1 ftp ftp 5678 Jul 15 09:30 data.csv
+end;
+----
+
+==== Transfers
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `Retrieve(ARemotePath, out AData)`
+| `RETR` — downloads the exact bytes of `ARemotePath` into `AData`.
+  `True` when the server confirms with `226`.
+
+| `Store(ARemotePath, AData)`
+| `STOR` — uploads `AData` (exact bytes) to `ARemotePath`. Writes all
+  bytes to the data connection, then half-closes it so the server
+  sees EOF. `True` when confirmed with `226`.
+
+| `Delete(ARemotePath)`
+| `DELE` — deletes the remote file. `True` on `250`.
+|===
+
+.Example — download, modify, re-upload
+[source,pascal]
+----
+var
+  Contents: string;
+begin
+  Client.BinaryMode();
+
+  if Client.Retrieve('/uploads/notes.txt', Contents) then
+    WriteLn('Downloaded ', Length(Contents), ' bytes');
+
+  Contents := Contents + #10 + 'appended line';
+
+  if Client.Store('/uploads/notes.txt', Contents) then
+    WriteLn('Uploaded successfully')
+  else
+    WriteLn('Upload failed: ', Client.LastCode, ' ', Client.LastText);
+
+  Client.Delete('/uploads/old_backup.txt');
+end;
+----
+
+==== Disconnecting
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `Quit`
+| Sends `QUIT`, reads the `221` reply, and closes the control
+  connection regardless of whether the reply was `221` — always call
+  this to clean up rather than just dropping the client.
+|===
+
+.Example
+[source,pascal]
+----
+begin
+  Client.Quit();
+  Client.Free();
+end;
+----
+
+==== State
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `LastCode`
+| The numeric reply code from the most recent control-connection
+  exchange (e.g. `220`, `230`, `550`).
+
+| `LastText`
+| The reply text from the most recent control-connection exchange —
+  useful for diagnosing a `False` return.
+
+| `Ctrl`
+| The underlying `Net.Tcp.TTcpConn` for the control connection.
+|===
+
+== Full Example: Mirroring a Remote Directory
+
+[source,pascal]
+----
+uses
+  Net.Ftp;
+
+var
+  Client: TFtpClient;
+  Listing, Data: string;
+  Files: TStringList;   { or split Listing on #10 by hand }
+  Name: string;
+begin
+  Client := TFtpClient.Create();
+  try
+    if not Client.Connect('192.168.1.10', 21) then
+    begin
+      WriteLn('Connect failed');
+      Exit;
+    end;
+
+    if not Client.Login('demo', 'demo123') then
+    begin
+      WriteLn('Login failed: ', Client.LastCode);
+      Exit;
+    end;
+
+    Client.BinaryMode();
+
+    if Client.List('', Listing) then
+    begin
+      WriteLn('Remote files:');
+      WriteLn(Listing);
+
+      { For each name in Listing (split on #10 in real code): }
+      Name := 'readme.txt';
+      if Client.Retrieve(Name, Data) then
+        WriteLn('Fetched ', Name, ': ', Length(Data), ' bytes');
+    end;
+
+    Client.Quit();
+  finally
+    Client.Free();
+  end;
+end;
+----

@@ -1,0 +1,540 @@
+= Xml.Types Unit — API Reference
+:toc: left
+:toclevels: 3
+:source-highlighter: rouge
+:icons: font
+:sectnums:
+
+The in-memory XML document model (DOM). `TXMLNode` is the abstract
+base; the concrete node types are `TXMLElement`, `TXMLText`,
+`TXMLCData`, `TXMLComment`, and `TXMLProcessingInstruction`.
+`TXMLDocument` wraps the root element plus the declaration
+(version/encoding).
+
+== Overview
+
+Both the reader (`Xml.Parser` / `Xml.Reader`) and code that builds a
+document by hand target this one tree, so XML round-trips through it.
+The navigation API takes after .NET's XLinq (`XElement`) and Java's
+JDOM.
+
+.Building a document
+[source,pascal]
+----
+Lib := TXMLElement.Create('library');
+Book := Lib.AddElement('book');          // create + adopt + return
+Book.SetAttribute('id', 'b1');
+Book.AddElement('title', 'Dune');        // <title>Dune</title>
+
+WriteLn(Lib.FormatXML());                // pretty
+WriteLn(Lib.AsXML());                    // compact
+----
+
+.Reading a parsed document
+[source,pascal]
+----
+Doc := GetXML(S);                        // from Xml.Reader
+for each book: Doc.Root.Elements('book') // TList<TXMLElement>
+Title := Book.ChildText('title');        // '' if absent
+Id := Book.Attributes['id'];             // '' if absent
+----
+
+=== Memory model
+
+Parent-owns-child. Containers hold *strong* references to their
+children, so under Blaise ARC, releasing the root recursively releases
+the whole tree.
+
+[IMPORTANT]
+====
+* `Add()` adopts the node: never `Add` the same node to two parents,
+  and never `Add` a node you also keep a separate owning reference to
+  and free yourself.
+* Use `Extract()` to move a node out of one parent before placing it
+  in another.
+* Nodes carry no parent back-pointer, so no retain cycles arise.
+* `Elements(...)` returns a *freshly-created* `TList<TXMLElement>`
+  that the *caller* frees; the elements themselves remain owned by
+  their parent.
+====
+
+Serialization is delegated to `Xml.Writer` (the single emit kernel):
+`AsXML` is compact, `FormatXML` is pretty. The writer has no
+dependency on this unit, so streaming-only callers need not pull in
+the DOM.
+
+== Types
+
+=== TXMLNodeType
+
+[source,pascal]
+----
+TXMLNodeType = (xtElement, xtText, xtCData, xtComment,
+                xtProcessingInstruction);
+----
+
+=== TXMLNode
+
+Abstract base for every node in the tree.
+
+[source,pascal]
+----
+TXMLNode = class
+public
+  procedure WriteTo(AWriter: TXMLWriter); virtual; abstract;
+  function AsXML: string;
+  function FormatXML: string; overload;
+  function FormatXML(AIndent: Integer): string; overload;
+  property NodeType: TXMLNodeType read GetNodeType;
+end;
+----
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `WriteTo(AWriter)`
+| Drives `AWriter` (an `Xml.Writer.TXMLWriter`) to emit this node and
+  its descendants. Overridden by each concrete node type.
+
+| `AsXML`
+| Serializes this node and its subtree to a compact string.
+
+| `FormatXML`
+| Serializes to a pretty-printed string with 2-space indent.
+
+| `FormatXML(AIndent)`
+| Serializes to a pretty-printed string with the given indent width.
+
+| `NodeType`
+| Which concrete node type this is — use to safely downcast (e.g.
+  `if N.NodeType = xtElement then TXMLElement(N)...`).
+|===
+
+=== TXMLText
+
+A text node.
+
+[source,pascal]
+----
+TXMLText = class(TXMLNode)
+public
+  constructor Create(const AValue: string);
+  property Value: string read FValue write FValue;
+end;
+----
+
+=== TXMLCData
+
+A CDATA section node.
+
+[source,pascal]
+----
+TXMLCData = class(TXMLNode)
+public
+  constructor Create(const AValue: string);
+  property Value: string read FValue write FValue;
+end;
+----
+
+=== TXMLComment
+
+A comment node.
+
+[source,pascal]
+----
+TXMLComment = class(TXMLNode)
+public
+  constructor Create(const AValue: string);
+  property Value: string read FValue write FValue;
+end;
+----
+
+=== TXMLProcessingInstruction
+
+A processing-instruction node (`<?target content?>`).
+
+[source,pascal]
+----
+TXMLProcessingInstruction = class(TXMLNode)
+public
+  constructor Create(const ATarget, AContent: string);
+  property Target: string read FTarget write FTarget;
+  property Content: string read FContent write FContent;
+end;
+----
+
+.Example — constructing leaf nodes directly
+[source,pascal]
+----
+var
+  Root: TXMLElement;
+begin
+  Root := TXMLElement.Create('doc');
+  Root.Add(TXMLComment.Create(' generated '));
+  Root.Add(TXMLProcessingInstruction.Create('xml-stylesheet',
+                                             'href="style.xsl"'));
+  Root.Add(TXMLText.Create('plain text'));
+  WriteLn(Root.AsXML);
+  // <doc><!-- generated --><?xml-stylesheet href="style.xsl"?>plain text</doc>
+end;
+----
+
+=== TXMLElement
+
+The workhorse node type — attributes plus ordered children.
+
+[source,pascal]
+----
+TXMLElement = class(TXMLNode)
+public
+  constructor Create(const AName: string);
+
+  { attributes }
+  function GetAttribute(const AName: string): string;
+  procedure SetAttribute(const AName, AValue: string);
+  function HasAttribute(const AName: string): Boolean;
+  function RemoveAttribute(const AName: string): Boolean;
+  function AttributeName(AIndex: Integer): string;
+  function AttributeValue(AIndex: Integer): string;
+  property AttributeCount: Integer read GetAttributeCount;
+  property Attributes[AName: string]: string
+    read GetAttribute write SetAttribute;
+
+  { children: building }
+  function Add(ANode: TXMLNode): Integer;
+  function AddElement(const AName: string): TXMLElement; overload;
+  function AddElement(const AName, AText: string): TXMLElement; overload;
+  procedure AddText(const AText: string);
+  procedure AddCData(const AText: string);
+  procedure AddComment(const AText: string);
+
+  { children: navigation }
+  function Find(const AName: string): TXMLElement;
+  function ChildText(const AName: string): string;
+  function Elements: TList<TXMLElement>; overload;
+  function Elements(const AName: string): TList<TXMLElement>; overload;
+
+  { children: mutation }
+  function Extract(AIndex: Integer): TXMLNode;
+  procedure Delete(AIndex: Integer);
+  procedure Clear;
+
+  property Name: string read FName write FName;
+  property Count: Integer read GetCount;
+  property Items[AIndex: Integer]: TXMLNode read GetItem; default;
+  property Text: string read GetText write SetText;
+end;
+----
+
+==== Attributes
+
+Backed by an insertion-ordered `TOrderedDictionary<string, string>`.
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `GetAttribute(AName)` / `Attributes[]`
+| Returns the attribute value, or `''` if absent.
+
+| `SetAttribute(AName, AValue)` / `Attributes[] :=`
+| Adds the attribute, or replaces it in place if it already exists
+  (insertion order preserved for existing attributes).
+
+| `HasAttribute(AName)`
+| `True` if the attribute is present.
+
+| `RemoveAttribute(AName)`
+| Removes the attribute; returns `True` if it existed.
+
+| `AttributeName(AIndex)` / `AttributeValue(AIndex)`
+| Indexed access to attribute name/value in insertion order.
+
+| `AttributeCount`
+| Number of attributes.
+|===
+
+.Example
+[source,pascal]
+----
+var
+  E: TXMLElement;
+begin
+  E := TXMLElement.Create('book');
+  E.SetAttribute('id', 'b1');
+  E.SetAttribute('lang', 'en');
+  E.Attributes['id'] := 'b2';   { replaces in place }
+
+  WriteLn(E.AttributeCount);       // 2
+  WriteLn(E.Attributes['id']);     // b2
+  WriteLn(E.HasAttribute('lang')); // True
+
+  E.RemoveAttribute('lang');
+  WriteLn(E.AttributeCount);       // 1
+end;
+----
+
+==== Building children
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `Add(ANode)`
+| Adopts `ANode` as the last child; returns its index.
+
+| `AddElement(AName)`
+| Creates a child element, adopts it, and returns it — chainable for
+  building nested structure fluently.
+
+| `AddElement(AName, AText)`
+| Creates a child element with a single text child:
+  `<AName>AText</AName>`.
+
+| `AddText(AText)`
+| Appends a `TXMLText` child.
+
+| `AddCData(AText)`
+| Appends a `TXMLCData` child.
+
+| `AddComment(AText)`
+| Appends a `TXMLComment` child.
+|===
+
+.Example — chained building
+[source,pascal]
+----
+var
+  Lib: TXMLElement;
+begin
+  Lib := TXMLElement.Create('library');
+  Lib.AddElement('book', 'Dune').SetAttribute('id', 'b1');
+  Lib.AddElement('book', 'Foundation').SetAttribute('id', 'b2');
+
+  WriteLn(Lib.FormatXML());
+  // <library>
+  //   <book id="b1">Dune</book>
+  //   <book id="b2">Foundation</book>
+  // </library>
+end;
+----
+
+==== Navigating children
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `Find(AName)`
+| Returns the first child element with the given name, or `nil` if
+  absent.
+
+| `ChildText(AName)`
+| Returns the `.Text` of the first child element with the given name,
+  or `''` if absent.
+
+| `Elements`
+| All child elements, as a *new* `TList<TXMLElement>` the caller must
+  free. The elements themselves stay owned by this parent.
+
+| `Elements(AName)`
+| All child elements with the given name, same ownership rules as
+  above.
+
+| `Count` / `Items[]`
+| The raw child list (all node types, not just elements). `Items` is
+  the default indexed property.
+|===
+
+.Example — reading a parsed document
+[source,pascal]
+----
+uses
+  Xml.Types, Xml.Reader;
+
+var
+  Doc: TXMLDocument;
+  Books: TList<TXMLElement>;
+  B: TXMLElement;
+begin
+  Doc := GetXML(
+    '<library>' +
+    '<book id="b1"><title>Dune</title></book>' +
+    '<book id="b2"><title>Foundation</title></book>' +
+    '</library>');
+  try
+    Books := Doc.Root.Elements('book');
+    try
+      for B in Books do
+        WriteLn(B.Attributes['id'], ': ', B.ChildText('title'));
+      // b1: Dune
+      // b2: Foundation
+    finally
+      Books.Free();   { the list, not the elements }
+    end;
+  finally
+    Doc.Free();
+  end;
+end;
+----
+
+==== Mutating children
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `Extract(AIndex)`
+| Detaches the child at `AIndex` and returns it; the caller now owns
+  it (e.g. to re-`Add` it under a different parent).
+
+| `Delete(AIndex)`
+| Detaches and discards the child at `AIndex` — ARC frees it if this
+  was the last reference.
+
+| `Clear`
+| Removes all children.
+|===
+
+.Example — Extract vs Delete
+[source,pascal]
+----
+var
+  Root, Other: TXMLElement;
+  Moved: TXMLNode;
+begin
+  Root := TXMLElement.Create('root');
+  Root.AddElement('a');
+  Root.AddElement('b');
+
+  Other := TXMLElement.Create('other');
+
+  Moved := Root.Extract(0);   { detach 'a' from Root without freeing it }
+  Other.Add(Moved);           { re-adopt it under Other }
+
+  WriteLn(Root.Count);        // 1  (only 'b' left)
+  WriteLn(Other.Count);       // 1  ('a' now here)
+end;
+----
+
+==== Text
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `Text` (getter)
+| Concatenated text of all descendant text/CDATA nodes, recursively —
+  like XLinq's `XElement.Value`.
+
+| `Text` (setter)
+| Replaces *all* children with a single text node holding the
+  assigned value (or no children if assigned `''`).
+|===
+
+.Example
+[source,pascal]
+----
+var
+  E: TXMLElement;
+begin
+  E := TXMLElement.Create('note');
+  E.AddText('Hello, ');
+  E.AddElement('b', 'world');
+  WriteLn(E.Text);        // Hello, world
+
+  E.Text := 'replaced';   // wipes all children, sets one text node
+  WriteLn(E.AsXML);       // <note>replaced</note>
+end;
+----
+
+=== TXMLDocument
+
+The root element plus the XML declaration values.
+
+[source,pascal]
+----
+TXMLDocument = class
+public
+  constructor Create;
+  function AsXML: string;
+  function FormatXML: string; overload;
+  function FormatXML(AIndent: Integer): string; overload;
+
+  property Root: TXMLElement read FRoot write FRoot;
+  property Version: string read FVersion write FVersion;
+  property Encoding: string read FEncoding write FEncoding;
+end;
+----
+
+`Create` defaults to `Version := '1.0'`, `Encoding := 'UTF-8'`,
+`Root := nil`. Assigning `Root` adopts the element (same ownership
+rules as `TXMLElement.Add`).
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `AsXML`
+| Compact serialization: declaration + root element.
+
+| `FormatXML` / `FormatXML(AIndent)`
+| Pretty-printed serialization: declaration + root element.
+|===
+
+.Example — building a document from scratch
+[source,pascal]
+----
+var
+  Doc: TXMLDocument;
+begin
+  Doc := TXMLDocument.Create();
+  Doc.Encoding := 'UTF-8';
+
+  Doc.Root := TXMLElement.Create('library');
+  Doc.Root.AddElement('book', 'Dune').SetAttribute('id', 'b1');
+
+  WriteLn(Doc.AsXML);
+  // <?xml version="1.0" encoding="UTF-8"?><library><book id="b1">Dune</book></library>
+
+  Doc.Free();
+end;
+----
+
+== Full Example: Building, Querying, and Restructuring a Document
+
+[source,pascal]
+----
+uses
+  Xml.Types;
+
+var
+  Doc: TXMLDocument;
+  Catalog, Book: TXMLElement;
+  Cheap: TList<TXMLElement>;
+  B: TXMLElement;
+begin
+  Doc := TXMLDocument.Create();
+  Doc.Root := TXMLElement.Create('catalog');
+  Catalog := Doc.Root;
+
+  Book := Catalog.AddElement('book');
+  Book.SetAttribute('id', 'b1');
+  Book.AddElement('title', 'Dune');
+  Book.AddElement('price', '9.99');
+
+  Book := Catalog.AddElement('book');
+  Book.SetAttribute('id', 'b2');
+  Book.AddElement('title', 'Foundation');
+  Book.AddElement('price', '24.99');
+
+  WriteLn(Doc.FormatXML());
+
+  { find all books, print titles }
+  for B in Catalog.Elements('book') do
+    WriteLn(B.ChildText('title'), ' -> $', B.ChildText('price'));
+
+  Doc.Free();
+end;
+----

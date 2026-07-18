@@ -1,0 +1,601 @@
+= Numerics.Decimal Unit — API Reference
+:toc: left
+:toclevels: 3
+:source-highlighter: rouge
+:icons: font
+:sectnums:
+
+Arbitrary-precision exact decimal arithmetic. `TDecimal` is a single
+exact base-10 number type for *financial and exact-decimal* use:
+money, billing, tax, currency conversion, and any value that is
+decimal by definition, where rounding error would be a correctness
+bug.
+
+== Overview
+
+`TDecimal` deliberately replaces the historical proliferation of
+fixed types (Delphi/FPC `Currency`, `Comp`) with *one* type, mirroring
+the string-consolidation philosophy of the language (one `string`,
+not a family). See the project's `docs/language-rationale.adoc` for
+the full rationale and the comparison against Java's
+`java.math.BigDecimal`.
+
+[IMPORTANT]
+====
+*Not for scientific / engineering computing.* Use `Double` (with the
+`Math` unit) for that — floating point runs on hardware, is far
+faster, and is the natural domain of transcendental functions
+(`Sin`/`Cos`/`Sqrt`/`Ln`) whose results are irrational anyway, so
+exact decimal representation buys nothing. `TDecimal` deliberately
+offers no such functions. "High precision" here means an arbitrary
+number of exact *decimal places*, not more significant binary digits
+— it is not an `Extended`/quad-float replacement.
+====
+
+=== Design decisions (and how they improve on Java's BigDecimal)
+
+* *Value = unscaled / 10^Scale.* `Scale` is a signed `Integer` — a
+  negative scale represents tens/hundreds (e.g. `6E+2` = unscaled
+  `6`, scale `-2`).
+* *Hybrid representation.* The common case (money, anything fitting
+  in an `Int64` unscaled value) is held inline in a single `Int64`
+  with zero heap allocation; only genuinely large / high-precision
+  values inflate to a little-endian array-of-digits magnitude. Fixed-
+  point speed for the common path, arbitrary range for the tail.
+* *Immutable value semantics.* Every operation returns a fresh
+  `TDecimal` and never mutates `Self`. Because `TDecimal` is a
+  value-type record (not a heap object like Java's `BigDecimal`), the
+  common path allocates nothing — immutability comes for free without
+  per-operation garbage.
+* *Value-based equality.* `2.0` and `2.00` compare *equal* (Java's
+  `BigDecimal` makes them unequal under `equals()`, which silently
+  breaks hash containers). The scale is retained for formatting only,
+  not for identity.
+* *Mandatory rounding on division.* Unlike `BigDecimal.divide`, there
+  is no overload that throws on a non-terminating quotient (`1/3`) or
+  silently truncates — division always carries an explicit target
+  scale and rounding mode/strategy.
+
+Construction uses free functions (`DecFromInt` / `DecFromInt64` /
+`DecFromStr` / `DecFromFloat`), following the `DateUtils` house style.
+Arithmetic and queries are record methods.
+
+[NOTE]
+====
+This reference covers the full declared interface. The implementation
+file adds a large internal bignum layer (`TDigitMag` arithmetic
+helpers: `MagAdd`, `MagSub`, `MagMul`, `MagDivMod`, etc.) for the
+inflated path — these are implementation details, not part of the
+public API.
+====
+
+== Types
+
+=== TDigitMag
+
+Arbitrary-precision magnitude: decimal digits (each `0..9`),
+little-endian (least-significant digit at index 0), canonical (no
+trailing zero digits; empty = zero). Used only on the inflated path.
+
+[source,pascal]
+----
+TDigitMag = array of UInt32;
+----
+
+=== Errors
+
+[source,pascal]
+----
+EDecimalError = class(Exception);
+EDecimalParse = class(EDecimalError);
+EDecimalOverflow = class(EDecimalError);
+EDecimalRounding = class(EDecimalError);
+----
+
+[cols="2,4", options="header"]
+|===
+| Type | Raised when
+
+| `EDecimalError`
+| Base class for all errors raised by this unit.
+
+| `EDecimalParse`
+| `DecFromStr` receives input that is not a valid decimal literal.
+
+| `EDecimalOverflow`
+| A value would exceed an internal bound (reserved).
+
+| `EDecimalRounding`
+| `rmUnnecessary` rounding is requested but rounding is actually
+  needed — the operation could not be performed exactly at the target
+  scale.
+|===
+
+=== TRoundingMode
+
+The eight standard rounding modes, matching IEEE 754 / Java
+`RoundingMode` / .NET `MidpointRounding`.
+
+[source,pascal]
+----
+TRoundingMode = (rmUp, rmDown, rmCeiling, rmFloor,
+                 rmHalfUp, rmHalfDown, rmHalfEven, rmUnnecessary);
+----
+
+[cols="1,3", options="header"]
+|===
+| Mode | Behavior
+
+| `rmUp`
+| Away from zero.
+
+| `rmDown`
+| Toward zero (truncate).
+
+| `rmCeiling`
+| Toward `+infinity`.
+
+| `rmFloor`
+| Toward `-infinity`.
+
+| `rmHalfUp`
+| Nearest; ties away from zero.
+
+| `rmHalfDown`
+| Nearest; ties toward zero.
+
+| `rmHalfEven`
+| Nearest; ties to the even neighbor (banker's rounding). *Recommended
+  default for money* — removes the upward bias of always rounding
+  ties up.
+
+| `rmUnnecessary`
+| Assert exactness; raises `EDecimalRounding` if rounding is needed.
+|===
+
+=== IRoundingStrategy
+
+Strategy interface for injecting a custom rounding algorithm into
+`Divide` / `RoundTo` / `SetScale`. The eight `TRoundingMode` values
+are themselves provided as ready-made strategies via
+`StandardRounding`, so the enum is sugar over this interface — one
+code path. Implement this to add custom rounding (e.g.
+Swedish/Swiss 0.05 cash rounding, or currency-specific tie rules)
+without changing the library.
+
+[source,pascal]
+----
+IRoundingStrategy = interface
+  function RoundIncrement(Negative: Boolean; LastKeptDigit: Integer;
+                           DiscardedCompareHalf: Integer;
+                           AnyDiscarded: Boolean): Boolean;
+end;
+----
+
+`RoundIncrement` is told everything needed to decide whether to round
+the truncated magnitude *away from zero* by one unit in the last kept
+place:
+
+[cols="2,4", options="header"]
+|===
+| Parameter | Meaning
+
+| `Negative`
+| Sign of the value being rounded.
+
+| `LastKeptDigit`
+| The final retained digit (`0..9`) — needed for ties-to-even.
+
+| `DiscardedCompareHalf`
+| Sign of `(discarded fraction - 1/2)`: `-1` below half, `0` exactly
+  half, `+1` above half.
+
+| `AnyDiscarded`
+| `True` if any nonzero digit was discarded at all.
+|===
+
+Return `True` to increment the magnitude (round away from zero),
+`False` to keep the truncated value.
+
+.Example — a custom "round to nearest 0.05" cash strategy
+[source,pascal]
+----
+type
+  TNickelRounding = class(TObject, IRoundingStrategy)
+    function RoundIncrement(Negative: Boolean; LastKeptDigit: Integer;
+                             DiscardedCompareHalf: Integer;
+                             AnyDiscarded: Boolean): Boolean;
+  end;
+
+function TNickelRounding.RoundIncrement(Negative: Boolean;
+  LastKeptDigit: Integer; DiscardedCompareHalf: Integer;
+  AnyDiscarded: Boolean): Boolean;
+begin
+  { Round the last retained digit to the nearest 0 or 5. }
+  if not AnyDiscarded then
+    Result := False
+  else
+    Result := (LastKeptDigit mod 5) >= 3;
+end;
+----
+
+=== TStandardRounding
+
+Concrete `IRoundingStrategy` for the eight standard `TRoundingMode`
+behaviors; obtained via `StandardRounding(Mode)`. Exposed so it can be
+subclassed or referenced, though most users go through the enum
+overloads.
+
+[source,pascal]
+----
+TStandardRounding = class(TObject, IRoundingStrategy)
+  FMode: TRoundingMode;
+  constructor Create(AMode: TRoundingMode);
+  function RoundIncrement(Negative: Boolean; LastKeptDigit: Integer;
+                           DiscardedCompareHalf: Integer;
+                           AnyDiscarded: Boolean): Boolean;
+end;
+----
+
+=== TDecimal
+
+An exact base-10 number. This is the Phase 0 surface: construction,
+formatting, and queries on the inline/compact path.
+
+[source,pascal]
+----
+TDecimal = record
+  function Scale: Integer;
+  function IsZero: Boolean;
+  function Sign: Integer;
+
+  function Add(const B: TDecimal): TDecimal;
+  function Subtract(const B: TDecimal): TDecimal;
+  function Multiply(const B: TDecimal): TDecimal;
+  function Negate: TDecimal;
+  function Abs: TDecimal;
+
+  function Divide(const B: TDecimal; TargetScale: Integer;
+                   Mode: TRoundingMode): TDecimal; overload;
+  function Divide(const B: TDecimal; TargetScale: Integer;
+                   const Strategy: IRoundingStrategy): TDecimal; overload;
+
+  function RoundTo(NewScale: Integer; Mode: TRoundingMode): TDecimal; overload;
+  function RoundTo(NewScale: Integer;
+                    const Strategy: IRoundingStrategy): TDecimal; overload;
+  function SetScale(NewScale: Integer; Mode: TRoundingMode): TDecimal;
+
+  function Compare(const B: TDecimal): Integer;
+  function Equals(const B: TDecimal): Boolean;
+  function GetHashCode: Integer;
+
+  function ToString: string;
+  function ToPlainString: string;
+  function StripTrailingZeros: TDecimal;
+  function ToDouble: Double;
+  function ToInt64: Int64;
+end;
+----
+
+==== Queries
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `Scale`
+| Number of fraction digits (the stored, signed scale). May be
+  negative.
+
+| `IsZero`
+| Tests whether the value is exactly zero (any scale).
+
+| `Sign`
+| `-1` if negative, `0` if zero, `+1` if positive.
+|===
+
+.Example
+[source,pascal]
+----
+var
+  D: TDecimal;
+begin
+  D := DecFromStr('-19.99');
+  WriteLn(D.Scale);      // 2
+  WriteLn(D.Sign);       // -1
+  WriteLn(D.IsZero);     // False
+end;
+----
+
+==== Arithmetic
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `Add(B)`
+| `Self + B`. Result scale is `max(Self.Scale, B.Scale)` — exact, no
+  rounding. Addends are aligned to the common scale first. Raises
+  `EDecimalOverflow` if the exact result exceeds the compact range.
+
+| `Subtract(B)`
+| `Self - B`. Same scale rule as `Add`.
+
+| `Multiply(B)`
+| `Self * B`, exact. Result scale is `Self.Scale + B.Scale` — scales
+  add. No rounding is applied; call `RoundTo` afterwards to pin a
+  fixed result scale.
+
+| `Negate`
+| `-Self`. Scale preserved.
+
+| `Abs`
+| `\|Self\|`. Scale preserved.
+|===
+
+.Example
+[source,pascal]
+----
+var
+  Price, Tax, Total: TDecimal;
+begin
+  Price := DecFromStr('19.99');
+  Tax := DecFromStr('1.60');
+
+  Total := Price.Add(Tax);
+  WriteLn(Total.ToString);   // 21.59
+
+  WriteLn(Price.Multiply(DecFromInt(3)).ToString);  // 59.97
+  WriteLn(Price.Negate.ToString);                   // -19.99
+end;
+----
+
+==== Division and rounding
+
+Unlike Java's `BigDecimal.divide`, there is no overload that throws on
+a non-terminating quotient (e.g. `1/3`) or silently truncates —
+division always carries an explicit target scale and rounding
+mode/strategy.
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `Divide(B, TargetScale, Mode)`
+| Divides by `B`, producing a result with exactly `TargetScale`
+  fraction digits, rounded per `Mode`. Raises `EDivByZero` if `B` is
+  zero. Raises `EDecimalRounding` if `Mode` is `rmUnnecessary` and
+  rounding was needed.
+
+| `Divide(B, TargetScale, Strategy)`
+| As above, with rounding delegated to a custom strategy.
+
+| `RoundTo(NewScale, Mode)`
+| Returns `Self` rounded to `NewScale` fraction digits. Increasing the
+  scale pads with zeros (exact); decreasing it rounds per `Mode`.
+
+| `RoundTo(NewScale, Strategy)`
+| As above, with a custom rounding strategy.
+
+| `SetScale(NewScale, Mode)`
+| Alias of `RoundTo(NewScale, Mode)`, named for parity with
+  .NET/Java's `setScale`.
+|===
+
+.Example — splitting a bill three ways
+[source,pascal]
+----
+var
+  Bill, Share: TDecimal;
+begin
+  Bill := DecFromStr('100.00');
+  Share := Bill.Divide(DecFromInt(3), 2, rmHalfEven);
+  WriteLn(Share.ToString);   // 33.33
+end;
+----
+
+.Example — rmUnnecessary asserts exactness
+[source,pascal]
+----
+var
+  D: TDecimal;
+begin
+  D := DecFromStr('10.00');
+  try
+    D.Divide(DecFromInt(3), 2, rmUnnecessary);   // 10/3 doesn't terminate
+  except
+    on E: EDecimalRounding do
+      WriteLn('Not exact: ' + E.Message);
+  end;
+end;
+----
+
+==== Comparison and equality
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `Compare(B)`
+| Three-way *value* comparison. Operands are aligned to a common
+  scale first, so `2.0` and `2.00` compare equal — scale does not
+  participate in ordering. Returns `-1` / `0` / `+1`.
+
+| `Equals(B)`
+| Value equality. `2.0` equals `2.00` (contrast Java, where they are
+  unequal).
+
+| `GetHashCode`
+| Hash consistent with `Equals`: two value-equal decimals (e.g. `2.0`
+  and `2.00`) hash the same, computed over the value with trailing
+  zeros removed. Safe as a dictionary key, unlike Java's `BigDecimal`
+  (whose `hashCode` folds in the scale).
+|===
+
+.Example
+[source,pascal]
+----
+var
+  A, B: TDecimal;
+begin
+  A := DecFromStr('2.0');
+  B := DecFromStr('2.00');
+
+  WriteLn(A.Equals(B));         // True
+  WriteLn(A.Compare(B));        // 0
+  WriteLn(A.GetHashCode = B.GetHashCode);  // True
+end;
+----
+
+==== Formatting and conversion
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `ToString`
+| Canonical decimal text, scale-preserving, *never* scientific
+  notation. A value with scale 4 always renders four fraction digits
+  (e.g. `'4.0000'`); a negative scale renders trailing zeros as
+  integer digits (e.g. unscaled `6` scale `-2` renders `'600'`).
+
+| `ToPlainString`
+| Identical to `ToString`. Named for parity with Java's
+  `toPlainString`, documenting the guarantee that no exponent form is
+  ever produced.
+
+| `StripTrailingZeros`
+| Returns a value equal to `Self` with trailing fraction zeros
+  removed — the minimal scale that still represents the value
+  exactly. E.g. `4.0000` -> `4` (scale 0), `1.2300` -> `1.23`. Never
+  scientific notation (unlike Java's `stripTrailingZeros`, which can
+  yield `6E+2` for `600`).
+
+| `ToDouble`
+| Converts to the nearest `Double`. *Lossy* — use only at the
+  boundary with floating-point APIs, never for further exact
+  arithmetic.
+
+| `ToInt64`
+| Truncates toward zero to a 64-bit integer (drops any fraction).
+  Raises `EDecimalOverflow` if the integer part doesn't fit in
+  `Int64`.
+|===
+
+.Example
+[source,pascal]
+----
+var
+  D: TDecimal;
+begin
+  D := DecFromStr('4.0000');
+  WriteLn(D.ToString);                    // 4.0000
+  WriteLn(D.StripTrailingZeros.ToString); // 4
+
+  D := DecFromStr('19.99');
+  WriteLn(D.ToDouble);   // 19.99 (lossy — for display/interop only)
+  WriteLn(DecFromStr('19.00').ToInt64);   // 19
+end;
+----
+
+== Construction (Free Functions)
+
+Follows the `DateUtils` house style.
+
+[source,pascal]
+----
+function DecFromInt(V: Integer): TDecimal;
+function DecFromInt64(V: Int64): TDecimal;
+function DecFromStr(const S: string): TDecimal;
+function DecFromFloat(V: Double): TDecimal;
+function DecFromFloatExact(V: Double): TDecimal;
+----
+
+[cols="2,4", options="header"]
+|===
+| Function | Behavior
+
+| `DecFromInt(V)`
+| Exact decimal from a 32-bit signed integer, scale 0.
+
+| `DecFromInt64(V)`
+| Exact decimal from a 64-bit signed integer, scale 0.
+
+| `DecFromStr(S)`
+| Parses an exact decimal from text — the *recommended* way to
+  introduce a decimal literal, since it is exact (no binary-float
+  rounding). Accepts an optional leading `+`/`-`, digits, and an
+  optional single `.` followed by more digits (e.g. `'-19.99'`,
+  `'0.0001'`, `'600'`, `'+5'`). The result's scale is the number of
+  digits after the point. Values too large for the `Int64` compact
+  path automatically inflate — no size limit beyond available memory.
+  Raises `EDecimalParse` if `S` is empty or malformed.
+
+| `DecFromFloat(V)`
+| Builds from a `Double` using its *shortest* decimal representation
+  — the value you'd see printed (`DecFromFloat(0.1)` is exactly
+  `0.1`, *not* the `0.1000000000000000055...` the raw binary holds).
+  The safe, almost-always-intended conversion — the deliberate fix
+  for Java `BigDecimal`'s double-constructor trap.
+
+| `DecFromFloatExact(V)`
+| Builds from the `Double`'s binary value to high precision, exposing
+  the representation error (`DecFromFloatExact(0.1)` carries the
+  `0.100000...005...` tail). Almost never what you want — provided,
+  explicitly named, so the dangerous path is opt-in rather than the
+  default.
+|===
+
+.Example — DecFromFloat vs DecFromFloatExact
+[source,pascal]
+----
+var
+  Safe, Exact: TDecimal;
+begin
+  Safe := DecFromFloat(0.1);
+  WriteLn(Safe.ToString);          // 0.1
+
+  Exact := DecFromFloatExact(0.1);
+  WriteLn(Exact.ToString);         // 0.1000000000000000055511151231257827021181583404541015625
+end;
+----
+
+== Rounding Helper
+
+[source,pascal]
+----
+function StandardRounding(Mode: TRoundingMode): IRoundingStrategy;
+----
+
+Returns a ready-made `IRoundingStrategy` implementing one of the eight
+standard `TRoundingMode` behaviors — this is how the enum overloads of
+`Divide`/`RoundTo` delegate to the single strategy-based code path.
+
+== Full Example: Invoice Line-Item Totals
+
+[source,pascal]
+----
+uses
+  Numerics.Decimal;
+
+var
+  UnitPrice, Qty, LineTotal, TaxRate, Tax, GrandTotal: TDecimal;
+begin
+  UnitPrice := DecFromStr('12.50');
+  Qty := DecFromInt(7);
+  TaxRate := DecFromStr('0.0825');   { 8.25% }
+
+  LineTotal := UnitPrice.Multiply(Qty);
+  WriteLn('Line total: ', LineTotal.ToString);   // 87.50
+
+  { Multiply raises the scale (2 + 4 = 6); round to cents for the tax line. }
+  Tax := LineTotal.Multiply(TaxRate).RoundTo(2, rmHalfEven);
+  WriteLn('Tax: ', Tax.ToString);                // 7.22
+
+  GrandTotal := LineTotal.Add(Tax);
+  WriteLn('Total: ', GrandTotal.ToString);       // 94.72
+
+  if GrandTotal.Compare(DecFromStr('94.72')) = 0 then
+    WriteLn('Matches expected total');
+end;
+----

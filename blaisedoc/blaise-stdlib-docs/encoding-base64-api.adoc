@@ -1,0 +1,128 @@
+= Encoding.Base64 Unit — API Reference
+:toc: left
+:toclevels: 3
+:source-highlighter: rouge
+:icons: font
+:sectnums:
+
+Base64 encoding (RFC 4648).
+
+== Overview
+
+Base64 is a general-purpose binary-to-text encoding, not a
+cryptographic primitive, so it lives here under `Encoding` rather than
+under `Security` — the same reasoning Java uses for `java.util.Base64`
+and .NET for `System.Convert`.
+
+Strings are treated as raw bytes in and out. Output is accumulated
+through a `TStringBuilder` (see link:strutils-api.html[StrUtils]), so
+encoding/decoding large inputs is O(n).
+
+== Free Functions
+
+=== Base64Encode
+
+[source,pascal]
+----
+function Base64Encode(const S: string): string;
+----
+
+Encodes the raw bytes of `S` as standard Base64, with `=` padding.
+
+.Example
+[source,pascal]
+----
+begin
+  WriteLn(Base64Encode('hello'));    // aGVsbG8=
+  WriteLn(Base64Encode('hello!'));   // aGVsbG8h
+  WriteLn(Base64Encode(''));         // (empty string)
+end;
+----
+
+=== Base64Decode
+
+[source,pascal]
+----
+function Base64Decode(const S: string): string;
+----
+
+Decodes standard Base64 back to raw bytes.
+
+* Whitespace (space, tab, LF, CR) anywhere in the input is ignored.
+* `=` padding is honored — decoding stops there, since padding marks
+  the end of data.
+* On a malformed (non-Base64, non-whitespace, non-padding) character,
+  decoding stops and returns whatever was successfully decoded up to
+  that point, rather than raising.
+
+.Example
+[source,pascal]
+----
+begin
+  WriteLn(Base64Decode('aGVsbG8='));   // hello
+  WriteLn(Base64Decode('aGVs bG8h'));  // hello!  (embedded whitespace ignored)
+end;
+----
+
+.Example — malformed input returns a partial result
+[source,pascal]
+----
+begin
+  { '!' is not a valid Base64 character, so decoding stops there. }
+  WriteLn(Base64Decode('aGVsbG8!extra'));   // hello
+end;
+----
+
+[NOTE]
+====
+`Base64Decode` never raises — a caller that needs to distinguish
+"fully valid input" from "truncated due to malformed data" must
+validate the input separately (e.g. check length is a multiple of 4
+after stripping whitespace, or compare the round-trip length against
+expectations).
+====
+
+== Full Example: Encoding and Decoding Binary-ish Data
+
+[source,pascal]
+----
+uses
+  Encoding.Base64;
+
+var
+  Original, Encoded, Decoded: string;
+begin
+  Original := 'Blaise Pascal compiles to QBE IR.';
+
+  Encoded := Base64Encode(Original);
+  WriteLn('Encoded: ', Encoded);
+
+  Decoded := Base64Decode(Encoded);
+  WriteLn('Decoded: ', Decoded);
+
+  if Decoded = Original then
+    WriteLn('Round-trip OK');
+end;
+----
+
+.Example — Base64 for embedding binary-ish payloads in JSON/XML
+[source,pascal]
+----
+uses
+  Encoding.Base64, Json.Types;
+
+var
+  Root: TJSONObject;
+  FileBytes: string;   { treated as raw bytes }
+begin
+  FileBytes := #0#1#2#255#254;   { arbitrary bytes, not valid UTF-8 text }
+
+  Root := TJSONObject.Create();
+  Root.Add('payload', Base64Encode(FileBytes));
+
+  WriteLn(Root.AsJSON);
+  // {"payload":"AAEC//4="}
+
+  Root.Free();
+end;
+----

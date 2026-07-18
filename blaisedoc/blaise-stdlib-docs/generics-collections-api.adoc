@@ -1,0 +1,714 @@
+= Generics.Collections Unit — API Reference
+:toc: left
+:toclevels: 3
+:source-highlighter: rouge
+:icons: font
+:sectnums:
+
+Blaise RTL generic collections — mirrors Delphi's
+`System.Generics.Collections` and FPC's `Generics.Collections` for
+source-level compatibility.
+
+== Overview
+
+[cols="1,3", options="header"]
+|===
+| Type | Purpose
+
+| `TList<T>`
+| Growable, indexable array with eager LINQ-lite operators
+  (`Map`, `Where`, `Reduce`, `ForEach`, `Any`, `All`, `Find`) and an
+  in-place stable `Sort` / `BinarySearch`.
+
+| `TListEnumerator<T>`
+| The `for..in` enumerator for `TList<T>`.
+
+| `TStack<T>`
+| LIFO stack backed by a dynamic array.
+
+| `TQueue<T>`
+| FIFO queue backed by a dynamic circular-buffer array.
+
+| `TSet<T>`
+| Unordered set backed by a dynamic array, with a lazy hash index
+  once it grows past a threshold.
+
+| `IMap<K, V>`
+| Common contract shared by the dictionary-like types.
+
+| `TDictionary<K, V>`
+| Key/value map, insertion-ordered storage, lazy hash index for
+  lookups.
+
+| `TOrderedDictionary<K, V>`
+| Like `TDictionary<K, V>`, but also exposes indexed `Keys[]` /
+  `Values[]` properties that preserve insertion order.
+|===
+
+Key hashing for `TSet<T>` and the dictionary types goes through the
+`GCHashOf` overload set — instantiating a keyed container with a type
+that has no matching overload is a compile-time error.
+
+`TList<T>`'s functional operators depend on the `Functional` unit's
+closure types (`TFunc<T,R>`, `TFunc2<T1,T2,R>`, `TPredicate<T>`,
+`TAction<T>`, `TComparison<T>`).
+
+== TList<T>
+
+A growable, indexable array.
+
+[source,pascal]
+----
+TList<T> = class
+public
+  procedure Add(Value: T);
+  function Get(AIndex: Integer): T;
+  procedure SetItem(AIndex: Integer; Value: T);
+  function IndexOf(Value: T): Integer;
+  procedure Delete(AIndex: Integer);
+  procedure Clear;
+  procedure Destroy;
+  function GetEnumerator: TListEnumerator<T>;
+
+  function Map<R>(F: TFunc<T, R>): TList<R>;
+  function Where(P: TPredicate<T>): TList<T>;
+  function Reduce<R>(AInit: R; F: TFunc2<R, T, R>): R;
+  procedure ForEach(A: TAction<T>);
+  function Any(P: TPredicate<T>): Boolean;
+  function All(P: TPredicate<T>): Boolean;
+  function Find(P: TPredicate<T>; out AValue: T): Boolean;
+
+  procedure Sort(C: TComparison<T>);
+  function BinarySearch(AItem: T; C: TComparison<T>;
+                         out AIndex: Integer): Boolean;
+
+  property Count: Integer read FCount;
+  property Items[AIndex: Integer]: T read Get write SetItem; default;
+end;
+----
+
+=== Basic operations
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `Add(Value)`
+| Appends `Value`, growing capacity (doubling, starting at 4) as
+  needed.
+
+| `Get(AIndex)` / `Items[]`
+| Returns the element at `AIndex`. `Items` is the default indexed
+  property, so `List[i]` reads via `Get`.
+
+| `SetItem(AIndex, Value)` / `Items[] :=`
+| Replaces the element at `AIndex`. For a managed `T` the store
+  carries the compiler's ARC discipline — the old element is
+  released, the new one retained.
+
+| `IndexOf(Value)`
+| Returns the index of the first element equal to `Value`, or `-1`.
+
+| `Delete(AIndex)`
+| Removes the element at `AIndex` and shifts later elements down.
+
+| `Clear`
+| Releases all elements and empties the list, keeping capacity.
+
+| `Count`
+| Number of elements currently in the list.
+|===
+
+.Example
+[source,pascal]
+----
+var
+  Nums: TList<Integer>;
+  I: Integer;
+begin
+  Nums := TList<Integer>.Create();
+  Nums.Add(10);
+  Nums.Add(20);
+  Nums.Add(30);
+
+  WriteLn(Nums.Count);        // 3
+  WriteLn(Nums[1]);           // 20
+
+  Nums[1] := 25;
+  WriteLn(Nums.IndexOf(25));  // 1
+
+  Nums.Delete(0);
+  WriteLn(Nums.Count);        // 2
+
+  for I in Nums do
+    WriteLn(I);
+  // 25
+  // 30
+end;
+----
+
+=== Functional operators
+
+`Map` and `Where` allocate and return *new* lists the caller owns; the
+source list is never modified except by `Sort`.
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `Map<R>(F)`
+| Returns a new `TList<R>` with `F` applied to every element.
+
+| `Where(P)`
+| Returns a new `TList<T>` containing only elements for which `P`
+  returns `True`.
+
+| `Reduce<R>(AInit, F)`
+| Folds the list left-to-right, starting from `AInit`, returning the
+  final accumulator.
+
+| `ForEach(A)`
+| Calls `A` once per element, in order. Side-effecting; no return
+  value.
+
+| `Any(P)`
+| `True` if at least one element satisfies `P`.
+
+| `All(P)`
+| `True` if every element satisfies `P` (vacuously `True` for an
+  empty list).
+
+| `Find(P, out AValue)`
+| Finds the first element satisfying `P`, assigns it to `AValue`, and
+  returns `True`; returns `False` (leaving `AValue` untouched) if none
+  match.
+|===
+
+.Example — Map, Where, Reduce
+[source,pascal]
+----
+var
+  Nums: TList<Integer>;
+  Doubled: TList<Integer>;
+  Evens: TList<Integer>;
+  Total: Integer;
+begin
+  Nums := TList<Integer>.Create();
+  Nums.Add(1); Nums.Add(2); Nums.Add(3); Nums.Add(4); Nums.Add(5);
+
+  Doubled := Nums.Map<Integer>(function(X: Integer): Integer
+                                begin
+                                  Result := X * 2
+                                end);
+  // Doubled: 2, 4, 6, 8, 10
+
+  Evens := Nums.Where(function(X: Integer): Boolean
+                       begin
+                         Result := X mod 2 = 0
+                       end);
+  // Evens: 2, 4
+
+  Total := Nums.Reduce<Integer>(0, function(Acc, X: Integer): Integer
+                                 begin
+                                   Result := Acc + X
+                                 end);
+  WriteLn(Total);   // 15
+end;
+----
+
+.Example — ForEach, Any, All, Find
+[source,pascal]
+----
+var
+  Names: TList<string>;
+  Found: string;
+begin
+  Names := TList<string>.Create();
+  Names.Add('Ada'); Names.Add('Bob'); Names.Add('Cy');
+
+  Names.ForEach(procedure(N: string)
+                begin
+                  WriteLn('Hi, ' + N)
+                end);
+
+  WriteLn(Names.Any(function(N: string): Boolean
+                     begin
+                       Result := Length(N) = 2
+                     end));   // True (Cy)
+
+  WriteLn(Names.All(function(N: string): Boolean
+                     begin
+                       Result := Length(N) >= 2
+                     end));   // True
+
+  if Names.Find(function(N: string): Boolean
+                begin
+                  Result := N[1] = 'B'
+                end, Found) then
+    WriteLn('Found: ' + Found);   // Found: Bob
+end;
+----
+
+=== Sort and BinarySearch
+
+`Sort` is an in-place *stable* sort (straight insertion) ordered by a
+`TComparison<T>` closure. `BinarySearch` requires the list already be
+sorted by the same comparison.
+
+.Example
+[source,pascal]
+----
+var
+  Nums: TList<Integer>;
+  ByValue: TComparison<Integer>;
+  Idx: Integer;
+begin
+  Nums := TList<Integer>.Create();
+  Nums.Add(5); Nums.Add(1); Nums.Add(4); Nums.Add(2); Nums.Add(3);
+
+  ByValue := function(A, B: Integer): Integer
+             begin
+               Result := A - B
+             end;
+
+  Nums.Sort(ByValue);
+  // Nums: 1, 2, 3, 4, 5
+
+  if Nums.BinarySearch(4, ByValue, Idx) then
+    WriteLn('Found 4 at index ', Idx);   // Found 4 at index 3
+end;
+----
+
+== TListEnumerator<T>
+
+The `for..in` enumerator for `TList<T>`. Not normally constructed
+directly — obtained via `TList<T>.GetEnumerator`.
+
+[source,pascal]
+----
+TListEnumerator<T> = class
+public
+  constructor Create(AData: ^T; ACount: Integer);
+  function MoveNext: Boolean;
+  property Current: T read GetCurrent;
+end;
+----
+
+.Example
+[source,pascal]
+----
+var
+  Nums: TList<Integer>;
+  N: Integer;
+begin
+  Nums := TList<Integer>.Create();
+  Nums.Add(1); Nums.Add(2); Nums.Add(3);
+
+  for N in Nums do
+    WriteLn(N);
+end;
+----
+
+== TStack<T>
+
+A LIFO stack backed by a dynamic array.
+
+[source,pascal]
+----
+TStack<T> = class
+public
+  procedure Push(Value: T);
+  function Pop: T;
+  function Peek: T;
+  procedure Clear;
+  procedure Destroy;
+  property Count: Integer read FCount;
+end;
+----
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `Push(Value)`
+| Pushes `Value` onto the top, growing capacity as needed.
+
+| `Pop`
+| Removes and returns the top element. Caller must ensure `Count > 0`.
+
+| `Peek`
+| Returns the top element without removing it.
+
+| `Clear`
+| Empties the stack, keeping allocated capacity.
+|===
+
+.Example
+[source,pascal]
+----
+var
+  S: TStack<string>;
+begin
+  S := TStack<string>.Create();
+  S.Push('first');
+  S.Push('second');
+  S.Push('third');
+
+  WriteLn(S.Peek);   // third
+  WriteLn(S.Pop);    // third
+  WriteLn(S.Pop);    // second
+  WriteLn(S.Count);  // 1
+end;
+----
+
+== TQueue<T>
+
+A FIFO queue backed by a dynamic circular-buffer array. `Enqueue`
+appends to the tail; `Dequeue` removes from the head. The buffer
+doubles when full, preserving insertion order.
+
+[source,pascal]
+----
+TQueue<T> = class
+public
+  procedure Enqueue(Value: T);
+  function Dequeue: T;
+  function Peek: T;
+  procedure Clear;
+  procedure Destroy;
+  property Count: Integer read FCount;
+end;
+----
+
+.Example
+[source,pascal]
+----
+var
+  Q: TQueue<Integer>;
+begin
+  Q := TQueue<Integer>.Create();
+  Q.Enqueue(1);
+  Q.Enqueue(2);
+  Q.Enqueue(3);
+
+  WriteLn(Q.Peek);      // 1
+  WriteLn(Q.Dequeue);   // 1
+  WriteLn(Q.Dequeue);   // 2
+  WriteLn(Q.Count);     // 1
+end;
+----
+
+== TSet<T>
+
+An unordered set backed by a dynamic array. Membership tests use a
+lazy hash index once the set grows past `GCHashThreshold` elements;
+smaller sets use a linear scan. `Include` is a no-op if the value is
+already present.
+
+[source,pascal]
+----
+TSet<T> = class
+public
+  procedure Include(Value: T);
+  procedure Exclude(Value: T);
+  function Contains(Value: T): Boolean;
+  procedure Clear;
+  procedure Destroy;
+  property Count: Integer read FCount;
+end;
+----
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `Include(Value)`
+| Adds `Value` if not already present; otherwise a no-op.
+
+| `Exclude(Value)`
+| Removes `Value` if present; otherwise a no-op.
+
+| `Contains(Value)`
+| `True` if `Value` is in the set.
+
+| `Clear`
+| Empties the set.
+|===
+
+.Example
+[source,pascal]
+----
+var
+  Tags: TSet<string>;
+begin
+  Tags := TSet<string>.Create();
+  Tags.Include('urgent');
+  Tags.Include('bug');
+  Tags.Include('urgent');   // no-op, already present
+
+  WriteLn(Tags.Count);              // 2
+  WriteLn(Tags.Contains('bug'));    // True
+
+  Tags.Exclude('bug');
+  WriteLn(Tags.Contains('bug'));    // False
+end;
+----
+
+== IMap<K, V>
+
+Common contract for dictionary-like types, implemented by both
+`TDictionary<K, V>` and `TOrderedDictionary<K, V>`.
+
+[source,pascal]
+----
+IMap<K, V> = interface
+  procedure Add(Key: K; Value: V);
+  function TryGetValue(Key: K; var Value: V): Boolean;
+  function ContainsKey(Key: K): Boolean;
+  procedure Remove(Key: K);
+  function GetCount: Integer;
+end;
+----
+
+.Example — writing code against the interface
+[source,pascal]
+----
+procedure PrintIfPresent(M: IMap<string, Integer>; const Key: string);
+var
+  V: Integer;
+begin
+  if M.TryGetValue(Key, V) then
+    WriteLn(Key, ' = ', V)
+  else
+    WriteLn(Key, ' not found');
+end;
+----
+
+== TDictionary<K, V>
+
+A key/value map backed by two parallel arrays (insertion-ordered
+storage). Key lookup uses a lazy open-addressing hash index once the
+dictionary grows past `GCHashThreshold`; smaller dictionaries use a
+linear scan. Key equality uses `=` on the monomorphized key type
+(content equality for string keys); a key type needs a matching
+`GCHashOf` overload to instantiate this type.
+
+[source,pascal]
+----
+TDictionary<K, V> = class(IMap<K, V>)
+public
+  procedure Add(Key: K; Value: V);
+  function GetItem(Key: K): V;
+  procedure SetItem(Key: K; Value: V);
+  function TryGetValue(Key: K; var Value: V): Boolean;
+  function ContainsKey(Key: K): Boolean;
+  procedure Remove(Key: K);
+  procedure Clear;
+  function GetCount: Integer;
+  procedure Destroy;
+
+  property Count: Integer read FCount;
+  property Items[Key: K]: V read GetItem write SetItem; default;
+end;
+----
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `Add(Key, Value)`
+| Inserts a new entry, or updates the value if `Key` already exists.
+
+| `GetItem(Key)` / `Items[]`
+| Returns the value for `Key`. `Items` is the default indexed
+  property, so `Dict[Key]` reads via `GetItem`.
+
+| `SetItem(Key, Value)` / `Items[] :=`
+| Same as `Add` — inserts or updates.
+
+| `TryGetValue(Key, var Value)`
+| Looks up `Key`; assigns to `Value` and returns `True` if found,
+  otherwise returns `False` without touching `Value`.
+
+| `ContainsKey(Key)`
+| `True` if `Key` is present.
+
+| `Remove(Key)`
+| Removes the entry for `Key`, if present.
+
+| `Clear`
+| Drops all entries; keeps allocated capacity for reuse.
+
+| `Count`
+| Number of entries.
+|===
+
+.Example
+[source,pascal]
+----
+var
+  Ages: TDictionary<string, Integer>;
+  Age: Integer;
+begin
+  Ages := TDictionary<string, Integer>.Create();
+  Ages.Add('Ada', 36);
+  Ages.Add('Bob', 29);
+  Ages['Cy'] := 41;   // Items[] default property
+
+  WriteLn(Ages['Ada']);                 // 36
+  WriteLn(Ages.ContainsKey('Bob'));     // True
+
+  if Ages.TryGetValue('Dee', Age) then
+    WriteLn(Age)
+  else
+    WriteLn('Dee not found');
+
+  Ages.Remove('Bob');
+  WriteLn(Ages.Count);   // 2
+end;
+----
+
+== TOrderedDictionary<K, V>
+
+An insertion-ordered map. Entries are stored in the order they were
+first added; iteration and indexed access preserve that order. Like
+`TDictionary<K, V>` it is suitable for small maps where insertion
+order matters — for example preserving configuration-file order or
+producing deterministic output.
+
+[source,pascal]
+----
+TOrderedDictionary<K, V> = class(IMap<K, V>)
+public
+  procedure Add(Key: K; Value: V);
+  function GetItem(Key: K): V;
+  procedure SetItem(Key: K; Value: V);
+  function TryGetValue(Key: K; var Value: V): Boolean;
+  function ContainsKey(Key: K): Boolean;
+  procedure Remove(Key: K);
+  function GetKey(AIndex: Integer): K;
+  function GetValue(AIndex: Integer): V;
+  function GetCount: Integer;
+  procedure Destroy;
+
+  property Count: Integer read FCount;
+  property Items[Key: K]: V read GetItem write SetItem; default;
+  property Keys[Index: Integer]: K read GetKey;
+  property Values[Index: Integer]: V read GetValue;
+end;
+----
+
+In addition to the `IMap<K, V>` members shared with `TDictionary<K,
+V>`, `TOrderedDictionary<K, V>` adds indexed access to keys and values
+in insertion order:
+
+[cols="2,4", options="header"]
+|===
+| Member | Behavior
+
+| `Keys[Index]`
+| The key at position `Index`, in insertion order.
+
+| `Values[Index]`
+| The value at position `Index`, in insertion order.
+|===
+
+.Example — preserving configuration order
+[source,pascal]
+----
+var
+  Config: TOrderedDictionary<string, string>;
+  I: Integer;
+begin
+  Config := TOrderedDictionary<string, string>.Create();
+  Config.Add('host', 'localhost');
+  Config.Add('port', '8080');
+  Config.Add('timeout', '30');
+
+  // Iterate in the order entries were added, not hash order.
+  for I := 0 to Config.Count - 1 do
+    WriteLn(Config.Keys[I], ' = ', Config.Values[I]);
+  // host = localhost
+  // port = 8080
+  // timeout = 30
+end;
+----
+
+== Key Hashing: GCHashOf
+
+Key hashing for `TSet<T>` and the dictionary types dispatches through
+these overloads, resolved per generic instantiation. Each key type
+gets a content-appropriate hash: strings hash their bytes (matching
+the content semantics of `=` on strings); integers and pointers mix
+their value.
+
+[source,pascal]
+----
+function GCHashOf(AValue: string): Integer; overload;
+function GCHashOf(AValue: Integer): Integer; overload;
+function GCHashOf(AValue: Int64): Integer; overload;
+function GCHashOf(AValue: Pointer): Integer; overload;
+function GCHashOf(AValue: Boolean): Integer; overload;
+
+const
+  GCHashThreshold = 16;
+----
+
+[IMPORTANT]
+====
+Instantiating a keyed container (`TSet<T>`, `TDictionary<K, V>`,
+`TOrderedDictionary<K, V>`) with a type that has no matching
+`GCHashOf` overload is a compile-time error. Add an overload for new
+key types before using them as keys.
+====
+
+`GCHashThreshold` is the element count below which a linear scan beats
+building a hash table; both `TSet<T>` and the dictionary types switch
+to their lazy hash index once they cross it.
+
+== Full Example: Word Frequency Count
+
+[source,pascal]
+----
+uses
+  Generics.Collections;
+
+var
+  Words: TList<string>;
+  Freq: TDictionary<string, Integer>;
+  W: string;
+  Count: Integer;
+  Sorted: TList<string>;
+begin
+  Words := TList<string>.Create();
+  Words.Add('the'); Words.Add('cat'); Words.Add('sat');
+  Words.Add('on'); Words.Add('the'); Words.Add('mat');
+
+  Freq := TDictionary<string, Integer>.Create();
+  for W in Words do
+  begin
+    if Freq.TryGetValue(W, Count) then
+      Freq[W] := Count + 1
+    else
+      Freq[W] := 1;
+  end;
+
+  WriteLn('the -> ', Freq['the']);   // the -> 2
+  WriteLn('cat -> ', Freq['cat']);   // cat -> 1
+
+  // Unique words as a sorted list, via TSet<T> + Sort
+  Sorted := TList<string>.Create();
+  Sorted.Add('the'); Sorted.Add('cat'); Sorted.Add('sat');
+  Sorted.Add('on'); Sorted.Add('mat');
+  Sorted.Sort(function(A, B: string): Integer
+              begin
+                if A < B then Result := -1
+                else if A > B then Result := 1
+                else Result := 0
+              end);
+
+  for W in Sorted do
+    WriteLn(W);
+  // cat, mat, on, sat, the
+end;
+----
