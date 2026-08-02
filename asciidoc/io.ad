@@ -1,4 +1,4 @@
-= Pascal Projects (FPC and Delphi) 
+= Pascal Projects (FPC,  Delphi, and Blaise) 
 
 
 == Guitar Chord Box
@@ -22,8 +22,5 @@ link:https://html-preview.github.io/?url=https://raw.githubusercontent.com/Schmi
 Unofficial docs for Blaise compiler stdlib 
 
 link:https://github.com/graemeg/blaise[Source Code]
-
-link:https://html-preview.github.io/?url=https://raw.githubusercontent.com/Schmitty2005/Schmitty2005.github.io/blaisedoc/blaise-stdlib-docs/index.html[Docs]
-
-
+link:https://htmlpreview.github.io/?https://github.com/Schmitty2005/Schmitty2005.github.io/blob/main/blaisedoc/blaise-stdlib-docs/index.html[Docs]
 
