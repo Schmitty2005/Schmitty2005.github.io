@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>morse.base: Record TmorseSettings</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="PasDoc 0.16.0">
+<meta http-equiv="content-type" content="text/html; charset=utf-8">
+<link rel="StyleSheet" type="text/css" href="pasdoc.css">
+</head>
+<body>
+<div class="container"><div class="navigation">
+<ul><li><a href="AllUnits.html">Units</a></li><li><a href="ClassHierarchy.html">Class Hierarchy</a></li><li><a href="AllClasses.html">Classes, Interfaces, Objects and Records</a></li><li><a href="AllTypes.html">Types</a></li><li><a href="AllVariables.html">Variables</a></li><li><a href="AllConstants.html">Constants</a></li><li><a href="AllFunctions.html">Functions and Procedures</a></li><li><a href="AllIdentifiers.html">Identifiers</a></li></ul></div><div class="content">
+<span id="TmorseSettings"></span><h1 class="cio">Record TmorseSettings</h1>
+<div class="sections">
+<div class="one_section"><a class="section" href="#PasDoc-Description">Description</a></div><div class="one_section">Hierarchy</div><div class="one_section"><a class="section" href="#PasDoc-Fields">Fields</a></div><div class="one_section">Methods</div><div class="one_section">Properties</div></div>
+<span id="PasDoc-Description"></span><h2 class="unit">Unit</h2>
+<p class="unitlink">
+<a href="morse.base.html">morse.base</a></p>
+<h2 class="declaration">Declaration</h2>
+<p class="declaration">
+<code>type TmorseSettings = record</code></p>
+<h2 class="description">Description</h2>
+<p>
+The settting used for creation of the morse code sounds</p>
+<h2 class="overview">Overview</h2>
+<span id="PasDoc-Fields"></span><h3 class="summary">Fields</h3>
+<table class="summary wide_list">
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><code><strong><a href="morse.base.TmorseSettings.html#wpm">wpm</a></strong>: Integer;</code></td>
+</tr>
+<tr class="list2">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><code><strong><a href="morse.base.TmorseSettings.html#ToneHertz">ToneHertz</a></strong>: Integer;</code></td>
+</tr>
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><code><strong><a href="morse.base.TmorseSettings.html#morseLevel">morseLevel</a></strong>: Integer;</code></td>
+</tr>
+<tr class="list2">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><code><strong><a href="morse.base.TmorseSettings.html#FarsworthEnabled">FarsworthEnabled</a></strong>: Boolean;</code></td>
+</tr>
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><code><strong><a href="morse.base.TmorseSettings.html#FarnsworthWPM">FarnsworthWPM</a></strong>: Integer;</code></td>
+</tr>
+<tr class="list2">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><code><strong><a href="morse.base.TmorseSettings.html#NoiseType">NoiseType</a></strong>: <a href="morse.base.html#TnoiseType">TnoiseType</a>;</code></td>
+</tr>
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><code><strong><a href="morse.base.TmorseSettings.html#NoiseLevel">NoiseLevel</a></strong>: Integer;</code></td>
+</tr>
+</table>
+<h2 class="description">Description</h2>
+<h3 class="detail">Fields</h3>
+<table class="detail wide_list">
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><span id="wpm"></span><code><strong>wpm</strong>: Integer;</code></td>
+</tr>
+<tr><td colspan="2">
+<p>
+Set the WPM for the morse code output</p>
+</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><span id="ToneHertz"></span><code><strong>ToneHertz</strong>: Integer;</code></td>
+</tr>
+<tr><td colspan="2">
+<p>
+Set the tone in hertz for the audio output</p>
+</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><span id="morseLevel"></span><code><strong>morseLevel</strong>: Integer;</code></td>
+</tr>
+<tr><td colspan="2">
+<p>
+Set the level of the output. A good start would be 70% of max Integer value</p>
+</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><span id="FarsworthEnabled"></span><code><strong>FarsworthEnabled</strong>: Boolean;</code></td>
+</tr>
+<tr><td colspan="2">
+<p>
+Enable Farnsworth Spacing</p>
+</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><span id="FarnsworthWPM"></span><code><strong>FarnsworthWPM</strong>: Integer;</code></td>
+</tr>
+<tr><td colspan="2">
+<p>
+Set Farnsworth Spacing WPM, if enabled, otherwise, no affect</p>
+</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><span id="NoiseType"></span><code><strong>NoiseType</strong>: <a href="morse.base.html#TnoiseType">TnoiseType</a>;</code></td>
+</tr>
+<tr><td colspan="2">
+<p>
+Set the noise type to off, white, or pink</p>
+</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><span id="NoiseLevel"></span><code><strong>NoiseLevel</strong>: Integer;</code></td>
+</tr>
+<tr><td colspan="2">
+<p>
+Set the noise level. It should be the inverse of the morseLevel, 30 % of max Integer value, for example</p>
+</td></tr>
+</table>
+<hr><span class="appinfo"><em>Generated by <a href="https://pasdoc.github.io/">PasDoc 0.16.0</a>. </em>
+</span>
+</div></div></body></html>

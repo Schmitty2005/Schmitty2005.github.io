@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>morse.base</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="PasDoc 0.16.0">
+<meta http-equiv="content-type" content="text/html; charset=utf-8">
+<link rel="StyleSheet" type="text/css" href="pasdoc.css">
+</head>
+<body>
+<div class="container"><div class="navigation">
+<ul><li><a href="AllUnits.html">Units</a></li><li><a href="ClassHierarchy.html">Class Hierarchy</a></li><li><a href="AllClasses.html">Classes, Interfaces, Objects and Records</a></li><li><a href="AllTypes.html">Types</a></li><li><a href="AllVariables.html">Variables</a></li><li><a href="AllConstants.html">Constants</a></li><li><a href="AllFunctions.html">Functions and Procedures</a></li><li><a href="AllIdentifiers.html">Identifiers</a></li></ul></div><div class="content">
+<h1 class="unit">Unit morse.base</h1>
+<div class="sections">
+<div class="one_section"><a class="section" href="#PasDoc-Description">Description</a></div><div class="one_section">Uses</div><div class="one_section"><a class="section" href="#PasDoc-Classes">Classes, Interfaces, Objects and Records</a></div><div class="one_section">Functions and Procedures</div><div class="one_section"><a class="section" href="#PasDoc-Types">Types</a></div><div class="one_section">Constants</div><div class="one_section"><a class="section" href="#PasDoc-Variables">Variables</a></div></div>
+<span id="PasDoc-Description"></span><h2 class="description">Description</h2>
+<p>
+The base unit for the Morse-lib. These are what are needed to configure the morse code generator. A default settings is provided called <a class="normal" href="morse.base.html#DefaultMorseSettings">DefaultMorseSettings</a>. The settings are as follows : </p>
+
+<pre class="longcode">
+WPM : <span class="pascal_numeric">18</span>
+Farnsworth : Disabled
+Noise : Disabled
+Tone Hz  : <span class="pascal_numeric">800</span> Hz
+Volume : (TBA)</pre>
+
+<p></p>
+<span id="PasDoc-Uses"></span><h2 class="overview">Overview</h2>
+<span id="PasDoc-Classes"></span><h3 class="cio">Classes, Interfaces, Objects and Records</h3>
+<table class="classestable wide_list">
+<tr class="listheader">
+<th class="itemname">Name</th>
+<th class="itemdesc">Description</th>
+</tr>
+<tr class="list">
+<td class="itemname">Record&nbsp;<a class="bold" href="morse.base.TmorseSettings.html"><code>TmorseSettings</code></a></td>
+<td class="itemdesc">&nbsp;</td>
+</tr>
+</table>
+<span id="PasDoc-Types"></span><h3 class="summary">Types</h3>
+<table class="summary wide_list">
+<tr class="list">
+<td class="itemcode"><code><strong><a href="morse.base.html#Tpcm">Tpcm</a></strong> = array of Integer;</code></td>
+</tr>
+<tr class="list2">
+<td class="itemcode"><code><strong><a href="morse.base.html#EmorseLibError">EmorseLibError</a></strong> = Exception;</code></td>
+</tr>
+<tr class="list">
+<td class="itemcode"><code><strong><a href="morse.base.html#TsampleRate">TsampleRate</a></strong> = (...);</code></td>
+</tr>
+<tr class="list2">
+<td class="itemcode"><code><strong><a href="morse.base.html#TnoiseType">TnoiseType</a></strong> = (...);</code></td>
+</tr>
+</table>
+<span id="PasDoc-Variables"></span><h3 class="summary">Variables</h3>
+<table class="summary wide_list">
+<tr class="list">
+<td class="itemcode"><code><strong><a href="morse.base.html#DefaultMorseSettings">DefaultMorseSettings</a></strong>: <a href="morse.base.TmorseSettings.html">TmorseSettings</a>;</code></td>
+</tr>
+</table>
+<h2 class="description">Description</h2>
+<h3 class="detail">Types</h3>
+<table class="detail wide_list">
+<tr class="list">
+<td class="itemcode"><span id="Tpcm"></span><code><strong>Tpcm</strong> = array of Integer;</code></td>
+</tr>
+<tr><td colspan="1">
+<p>
+Array used for all PCM Data in morse-lib</p>
+</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="itemcode"><span id="EmorseLibError"></span><code><strong>EmorseLibError</strong> = Exception;</code></td>
+</tr>
+<tr><td colspan="1">
+<p>
+Used for all exceptions in morse-lib</p>
+</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="itemcode"><span id="TsampleRate"></span><code><strong>TsampleRate</strong> = (...);</code></td>
+</tr>
+<tr><td colspan="1">
+<p>
+sample rates for PCM data</p>
+<h6 class="description_section">Values</h6>
+<ul>
+<li>
+<span id="srLow">srLow = 8000</span></li>
+<li>
+<span id="srMedium">srMedium = 22050</span></li>
+<li>
+<span id="srCD">srCD = 44100</span></li>
+<li>
+<span id="srDVD">srDVD = 480000</span></li>
+</ul>
+</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="itemcode"><span id="TnoiseType"></span><code><strong>TnoiseType</strong> = (...);</code></td>
+</tr>
+<tr><td colspan="1">
+<p>
+Noise types for audio PCM data (off, white, or pink)</p>
+<h6 class="description_section">Values</h6>
+<ul>
+<li>
+<span id="ntOff">ntOff</span></li>
+<li>
+<span id="ntWhite">ntWhite</span></li>
+<li>
+<span id="ntPink">ntPink</span></li>
+</ul>
+</td></tr>
+</table>
+<h3 class="detail">Variables</h3>
+<table class="detail wide_list">
+<tr class="list">
+<td class="itemcode"><span id="DefaultMorseSettings"></span><code><strong>DefaultMorseSettings</strong>: <a href="morse.base.TmorseSettings.html">TmorseSettings</a>;</code></td>
+</tr>
+<tr><td colspan="1">
+<p>
+A preset default of morse sounds at 18WPM, no noise, no Farnsworth Spacing</p>
+</td></tr>
+</table>
+<hr><span class="appinfo"><em>Generated by <a href="https://pasdoc.github.io/">PasDoc 0.16.0</a>. </em>
+</span>
+</div></div></body></html>
