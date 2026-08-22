@@ -23,23 +23,33 @@
 <td class="itemdesc"><p>use asciiToMorse to quickly get the morse code string of an ascii character. Example <code>asciiToMorse[Ord(a)]</code> shoud output a string of '.-', the dit-dah representing the letter A in morse code</p></td>
 </tr>
 <tr class="list2">
+<td class="itemname"><a class="bold" href="morse.parser.html#cCharDelimiter">cCharDelimiter</a></td>
+<td class="itemunit"><a class="bold" href="morse.parser.html">morse.parser</a></td>
+<td class="itemdesc"><p>&nbsp;</p></td>
+</tr>
+<tr class="list">
 <td class="itemname"><a class="bold" href="morse.base.html#DefaultMorseSettings">DefaultMorseSettings</a></td>
 <td class="itemunit"><a class="bold" href="morse.base.html">morse.base</a></td>
 <td class="itemdesc"><p>A preset default of morse sounds at 18WPM, no noise, no Farnsworth Spacing</p></td>
 </tr>
-<tr class="list">
+<tr class="list2">
 <td class="itemname"><a class="bold" href="morse.pcm.Util.html#EMorseElement">EMorseElement</a></td>
 <td class="itemunit"><a class="bold" href="morse.pcm.Util.html">morse.pcm.Util</a></td>
 <td class="itemdesc"><p>, morse.pcm.pinknoise, legacey.random</p></td>
 </tr>
-<tr class="list2">
+<tr class="list">
 <td class="itemname"><a class="bold" href="morse.base.html#EmorseLibError">EmorseLibError</a></td>
 <td class="itemunit"><a class="bold" href="morse.base.html">morse.base</a></td>
 <td class="itemdesc"><p>Used for all exceptions in morse-lib</p></td>
 </tr>
+<tr class="list2">
+<td class="itemname"><a class="bold" href="morse.parser.IStringToMorseString.html">IStringToMorseString</a></td>
+<td class="itemunit"><a class="bold" href="morse.parser.html">morse.parser</a></td>
+<td class="itemdesc"><p>&nbsp;</p></td>
+</tr>
 <tr class="list">
-<td class="itemname"><a class="bold" href="morse.dictionary.util.html#MorseLookup">MorseLookup</a></td>
-<td class="itemunit"><a class="bold" href="morse.dictionary.util.html">morse.dictionary.util</a></td>
+<td class="itemname"><a class="bold" href="morse.dictionary.html#MorseLookup">MorseLookup</a></td>
+<td class="itemunit"><a class="bold" href="morse.dictionary.html">morse.dictionary</a></td>
 <td class="itemdesc"><p>&nbsp;</p></td>
 </tr>
 <tr class="list2">
@@ -95,44 +105,49 @@
 <td class="itemdesc"><p>TNoiseSettings = record noiseType :TNoiseType; noiseLevel : single; //0.1 to 1 end;</p></td>
 </tr>
 <tr class="list2">
-<td class="itemname"><a class="bold" href="morse.parser.Util.TmorseParser.html">TmorseParser</a></td>
-<td class="itemunit"><a class="bold" href="morse.parser.Util.html">morse.parser.Util</a></td>
-<td class="itemdesc"><p>&nbsp;</p></td>
+<td class="itemname"><a class="bold" href="morse.base.TElementTimings.html">TElementTimings</a></td>
+<td class="itemunit"><a class="bold" href="morse.base.html">morse.base</a></td>
+<td class="itemdesc"><p>Holds all the timing values for the elements</p></td>
 </tr>
 <tr class="list">
+<td class="itemname"><a class="bold" href="morse.parser.TmorseParser.html">TmorseParser</a></td>
+<td class="itemunit"><a class="bold" href="morse.parser.html">morse.parser</a></td>
+<td class="itemdesc"><p>&nbsp;</p></td>
+</tr>
+<tr class="list2">
 <td class="itemname"><a class="bold" href="morse.base.TmorseSettings.html">TmorseSettings</a></td>
 <td class="itemunit"><a class="bold" href="morse.base.html">morse.base</a></td>
 <td class="itemdesc"><p>The settting used for creation of the morse code sounds</p></td>
 </tr>
-<tr class="list2">
+<tr class="list">
 <td class="itemname"><a class="bold" href="morse.pcm.pinknoise.html#TNoise">TNoise</a></td>
 <td class="itemunit"><a class="bold" href="morse.pcm.pinknoise.html">morse.pcm.pinknoise</a></td>
 <td class="itemdesc"><p>&nbsp;</p></td>
 </tr>
-<tr class="list">
+<tr class="list2">
 <td class="itemname"><a class="bold" href="morse.base.html#TnoiseType">TnoiseType</a></td>
 <td class="itemunit"><a class="bold" href="morse.base.html">morse.base</a></td>
 <td class="itemdesc"><p>Noise types for audio PCM data (off, white, or pink)</p></td>
 </tr>
-<tr class="list2">
+<tr class="list">
 <td class="itemname"><a class="bold" href="morse.pcm.Util.html#TNoiseType">TNoiseType</a></td>
 <td class="itemunit"><a class="bold" href="morse.pcm.Util.html">morse.pcm.Util</a></td>
 <td class="itemdesc"><p>TpcmArray&lt;T&gt; = array of T; //Not Accepted in Blaise yet!</p></td>
 </tr>
-<tr class="list">
+<tr class="list2">
 <td class="itemname"><a class="bold" href="morse.base.html#Tpcm">Tpcm</a></td>
 <td class="itemunit"><a class="bold" href="morse.base.html">morse.base</a></td>
 <td class="itemdesc"><p>Array used for all PCM Data in morse-lib</p></td>
 </tr>
-<tr class="list2">
+<tr class="list">
 <td class="itemname"><a class="bold" href="morse.base.html#TsampleRate">TsampleRate</a></td>
 <td class="itemunit"><a class="bold" href="morse.base.html">morse.base</a></td>
 <td class="itemdesc"><p>sample rates for PCM data</p></td>
 </tr>
-<tr class="list">
+<tr class="list2">
 <td class="itemname"><a class="bold" href="morse.pcm.whitenoise.html#whiteNoise">whiteNoise</a></td>
 <td class="itemunit"><a class="bold" href="morse.pcm.whitenoise.html">morse.pcm.whitenoise</a></td>
-<td class="itemdesc"><p>type TNoise = array of int16;</p></td>
+<td class="itemdesc"><p>&nbsp;</p></td>
 </tr>
 </table>
 <hr><span class="appinfo"><em>Generated by <a href="https://pasdoc.github.io/">PasDoc 0.16.0</a>. </em>
