@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>morse.pcm.static</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="PasDoc 0.16.0">
+<meta http-equiv="content-type" content="text/html; charset=utf-8">
+<link rel="StyleSheet" type="text/css" href="pasdoc.css">
+</head>
+<body>
+<div class="container"><div class="navigation">
+<ul><li><a href="AllUnits.html">Units</a></li><li><a href="ClassHierarchy.html">Class Hierarchy</a></li><li><a href="AllClasses.html">Classes, Interfaces, Objects and Records</a></li><li><a href="AllTypes.html">Types</a></li><li><a href="AllVariables.html">Variables</a></li><li><a href="AllConstants.html">Constants</a></li><li><a href="AllFunctions.html">Functions and Procedures</a></li><li><a href="AllIdentifiers.html">Identifiers</a></li></ul></div><div class="content">
+<h1 class="unit">Unit morse.pcm.static</h1>
+<div class="sections">
+<div class="one_section"><a class="section" href="#PasDoc-Description">Description</a></div><div class="one_section">Uses</div><div class="one_section"><a class="section" href="#PasDoc-Classes">Classes, Interfaces, Objects and Records</a></div><div class="one_section"><a class="section" href="#PasDoc-FuncsProcs">Functions and Procedures</a></div><div class="one_section"><a class="section" href="#PasDoc-Types">Types</a></div><div class="one_section">Constants</div><div class="one_section">Variables</div></div>
+<span id="PasDoc-Description"></span><h2 class="description">Description</h2>
+&nbsp;<span id="PasDoc-Uses"></span><h2 class="overview">Overview</h2>
+<span id="PasDoc-Classes"></span><h3 class="cio">Classes, Interfaces, Objects and Records</h3>
+<table class="classestable wide_list">
+<tr class="listheader">
+<th class="itemname">Name</th>
+<th class="itemdesc">Description</th>
+</tr>
+<tr class="list">
+<td class="itemname">Record&nbsp;<a class="bold" href="morse.pcm.static.TStaticParams.html"><code>TStaticParams</code></a></td>
+<td class="itemdesc">&nbsp;</td>
+</tr>
+<tr class="list2">
+<td class="itemname">Record&nbsp;<a class="bold" href="morse.pcm.static.TStaticState.html"><code>TStaticState</code></a></td>
+<td class="itemdesc">&nbsp;</td>
+</tr>
+</table>
+<span id="PasDoc-FuncsProcs"></span><h3 class="summary">Functions and Procedures</h3>
+<table class="summary wide_list">
+<tr class="list">
+<td class="itemcode"><code>procedure <strong><a href="morse.pcm.static.html#InitStaticState">InitStaticState</a></strong>(out State: <a href="morse.pcm.static.TStaticState.html">TStaticState</a>; Seed: UInt32);</code></td>
+</tr>
+<tr class="list2">
+<td class="itemcode"><code>procedure <strong><a href="morse.pcm.static.html#GenerateStatic">GenerateStatic</a></strong>( Dest: <a href="morse.pcm.static.html#PInt16">PInt16</a>; SampleCount: UInt32; const Params: <a href="morse.pcm.static.TStaticParams.html">TStaticParams</a>; var State: <a href="morse.pcm.static.TStaticState.html">TStaticState</a> );</code></td>
+</tr>
+</table>
+<span id="PasDoc-Types"></span><h3 class="summary">Types</h3>
+<table class="summary wide_list">
+<tr class="list">
+<td class="itemcode"><code><strong><a href="morse.pcm.static.html#PInt16">PInt16</a></strong>  = &circ;Int16;</code></td>
+</tr>
+<tr class="list2">
+<td class="itemcode"><code><strong><a href="morse.pcm.static.html#Float32">Float32</a></strong> = Single;</code></td>
+</tr>
+<tr class="list">
+<td class="itemcode"><code><strong><a href="morse.pcm.static.html#Float64">Float64</a></strong> = Double;</code></td>
+</tr>
+<tr class="list2">
+<td class="itemcode"><code><strong><a href="morse.pcm.static.html#TInt16Array">TInt16Array</a></strong> = array[0..67108863] of Int16;</code></td>
+</tr>
+<tr class="list">
+<td class="itemcode"><code><strong><a href="morse.pcm.static.html#PInt16Array">PInt16Array</a></strong> = &circ;<a href="morse.pcm.static.html#TInt16Array">TInt16Array</a>;</code></td>
+</tr>
+</table>
+<h2 class="description">Description</h2>
+<h3 class="detail">Functions and Procedures</h3>
+<table class="detail wide_list">
+<tr class="list">
+<td class="itemcode"><span id="InitStaticState"></span><code>procedure <strong>InitStaticState</strong>(out State: <a href="morse.pcm.static.TStaticState.html">TStaticState</a>; Seed: UInt32);</code></td>
+</tr>
+<tr><td colspan="1">
+&nbsp;</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="itemcode"><span id="GenerateStatic"></span><code>procedure <strong>GenerateStatic</strong>( Dest: <a href="morse.pcm.static.html#PInt16">PInt16</a>; SampleCount: UInt32; const Params: <a href="morse.pcm.static.TStaticParams.html">TStaticParams</a>; var State: <a href="morse.pcm.static.TStaticState.html">TStaticState</a> );</code></td>
+</tr>
+<tr><td colspan="1">
+&nbsp;</td></tr>
+</table>
+<h3 class="detail">Types</h3>
+<table class="detail wide_list">
+<tr class="list">
+<td class="itemcode"><span id="PInt16"></span><code><strong>PInt16</strong>  = &circ;Int16;</code></td>
+</tr>
+<tr><td colspan="1">
+<p>
+DELPHI and FPC Redefines for compatibility</p>
+</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="itemcode"><span id="Float32"></span><code><strong>Float32</strong> = Single;</code></td>
+</tr>
+<tr><td colspan="1">
+&nbsp;</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="itemcode"><span id="Float64"></span><code><strong>Float64</strong> = Double;</code></td>
+</tr>
+<tr><td colspan="1">
+&nbsp;</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="itemcode"><span id="TInt16Array"></span><code><strong>TInt16Array</strong> = array[0..67108863] of Int16;</code></td>
+</tr>
+<tr><td colspan="1">
+<p>
+Array view over a PInt16 buffer, so we can index without pointer math. Never instantiate; only used through a cast. Range checks are off.</p>
+</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="itemcode"><span id="PInt16Array"></span><code><strong>PInt16Array</strong> = &circ;<a href="morse.pcm.static.html#TInt16Array">TInt16Array</a>;</code></td>
+</tr>
+<tr><td colspan="1">
+&nbsp;</td></tr>
+</table>
+<hr><span class="appinfo"><em>Generated by <a href="https://pasdoc.github.io/">PasDoc 0.16.0</a>. </em>
+</span>
+</div></div></body></html>

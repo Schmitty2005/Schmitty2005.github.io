@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>morse.pcm.static: Record TStaticState</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="PasDoc 0.16.0">
+<meta http-equiv="content-type" content="text/html; charset=utf-8">
+<link rel="StyleSheet" type="text/css" href="pasdoc.css">
+</head>
+<body>
+<div class="container"><div class="navigation">
+<ul><li><a href="AllUnits.html">Units</a></li><li><a href="ClassHierarchy.html">Class Hierarchy</a></li><li><a href="AllClasses.html">Classes, Interfaces, Objects and Records</a></li><li><a href="AllTypes.html">Types</a></li><li><a href="AllVariables.html">Variables</a></li><li><a href="AllConstants.html">Constants</a></li><li><a href="AllFunctions.html">Functions and Procedures</a></li><li><a href="AllIdentifiers.html">Identifiers</a></li></ul></div><div class="content">
+<span id="TStaticState"></span><h1 class="cio">Record TStaticState</h1>
+<div class="sections">
+<div class="one_section"><a class="section" href="#PasDoc-Description">Description</a></div><div class="one_section">Hierarchy</div><div class="one_section"><a class="section" href="#PasDoc-Fields">Fields</a></div><div class="one_section">Methods</div><div class="one_section">Properties</div></div>
+<span id="PasDoc-Description"></span><h2 class="unit">Unit</h2>
+<p class="unitlink">
+<a href="morse.pcm.static.html">morse.pcm.static</a></p>
+<h2 class="declaration">Declaration</h2>
+<p class="declaration">
+<code>type TStaticState = record</code></p>
+<h2 class="description">Description</h2>
+&nbsp;<h2 class="overview">Overview</h2>
+<span id="PasDoc-Fields"></span><h3 class="summary">Fields</h3>
+<table class="summary wide_list">
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><code><strong><a href="morse.pcm.static.TStaticState.html#Seed">Seed</a></strong>:         UInt32;</code></td>
+</tr>
+<tr class="list2">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><code><strong><a href="morse.pcm.static.TStaticState.html#WhinePhase">WhinePhase</a></strong>:   <a href="morse.pcm.static.html#Float64">Float64</a>;</code></td>
+</tr>
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><code><strong><a href="morse.pcm.static.TStaticState.html#HumPhase">HumPhase</a></strong>:     <a href="morse.pcm.static.html#Float64">Float64</a>;</code></td>
+</tr>
+<tr class="list2">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><code><strong><a href="morse.pcm.static.TStaticState.html#WobbleLP">WobbleLP</a></strong>:     <a href="morse.pcm.static.html#Float32">Float32</a>;</code></td>
+</tr>
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><code><strong><a href="morse.pcm.static.TStaticState.html#DriftLP">DriftLP</a></strong>:      <a href="morse.pcm.static.html#Float32">Float32</a>;</code></td>
+</tr>
+<tr class="list2">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><code><strong><a href="morse.pcm.static.TStaticState.html#PinkState">PinkState</a></strong>:    <a href="morse.pcm.static.html#Float32">Float32</a>;</code></td>
+</tr>
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><code><strong><a href="morse.pcm.static.TStaticState.html#CrackleEnv">CrackleEnv</a></strong>:   <a href="morse.pcm.static.html#Float32">Float32</a>;</code></td>
+</tr>
+<tr class="list2">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><code><strong><a href="morse.pcm.static.TStaticState.html#BQ_Z1">BQ_Z1</a></strong>: <a href="morse.pcm.static.html#Float32">Float32</a>;</code></td>
+</tr>
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><code><strong><a href="morse.pcm.static.TStaticState.html#BQ_Z2">BQ_Z2</a></strong>: <a href="morse.pcm.static.html#Float32">Float32</a>;</code></td>
+</tr>
+</table>
+<h2 class="description">Description</h2>
+<h3 class="detail">Fields</h3>
+<table class="detail wide_list">
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><span id="Seed"></span><code><strong>Seed</strong>:         UInt32;</code></td>
+</tr>
+<tr><td colspan="2">
+&nbsp;</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><span id="WhinePhase"></span><code><strong>WhinePhase</strong>:   <a href="morse.pcm.static.html#Float64">Float64</a>;</code></td>
+</tr>
+<tr><td colspan="2">
+<p>
+xorshift32; must be nonzero</p>
+</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><span id="HumPhase"></span><code><strong>HumPhase</strong>:     <a href="morse.pcm.static.html#Float64">Float64</a>;</code></td>
+</tr>
+<tr><td colspan="2">
+<p>
+0..1 cycles</p>
+</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><span id="WobbleLP"></span><code><strong>WobbleLP</strong>:     <a href="morse.pcm.static.html#Float32">Float32</a>;</code></td>
+</tr>
+<tr><td colspan="2">
+<p>
+0..1 cycles</p>
+</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><span id="DriftLP"></span><code><strong>DriftLP</strong>:      <a href="morse.pcm.static.html#Float32">Float32</a>;</code></td>
+</tr>
+<tr><td colspan="2">
+&nbsp;</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><span id="PinkState"></span><code><strong>PinkState</strong>:    <a href="morse.pcm.static.html#Float32">Float32</a>;</code></td>
+</tr>
+<tr><td colspan="2">
+&nbsp;</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><span id="CrackleEnv"></span><code><strong>CrackleEnv</strong>:   <a href="morse.pcm.static.html#Float32">Float32</a>;</code></td>
+</tr>
+<tr><td colspan="2">
+&nbsp;</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><span id="BQ_Z1"></span><code><strong>BQ_Z1</strong>: <a href="morse.pcm.static.html#Float32">Float32</a>;</code></td>
+</tr>
+<tr><td colspan="2">
+&nbsp;</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><span id="BQ_Z2"></span><code><strong>BQ_Z2</strong>: <a href="morse.pcm.static.html#Float32">Float32</a>;</code></td>
+</tr>
+<tr><td colspan="2">
+&nbsp;</td></tr>
+</table>
+<hr><span class="appinfo"><em>Generated by <a href="https://pasdoc.github.io/">PasDoc 0.16.0</a>. </em>
+</span>
+</div></div></body></html>

@@ -18,14 +18,74 @@
 <th class="itemdesc">Description</th>
 </tr>
 <tr class="list">
-<td class="itemname"><a class="bold" href="morse.pcm.Util.html#EMorseElement">EMorseElement</a></td>
-<td class="itemunit"><a class="bold" href="morse.pcm.Util.html">morse.pcm.Util</a></td>
-<td class="itemdesc"><p>, morse.pcm.pinknoise, legacey.random</p></td>
+<td class="itemname"><a class="bold" href="morse.datatypes.byte.base.html#EMorseCodecError">EMorseCodecError</a></td>
+<td class="itemunit"><a class="bold" href="morse.datatypes.byte.base.html">morse.datatypes.byte.base</a></td>
+<td class="itemdesc"><p>&nbsp;</p></td>
 </tr>
 <tr class="list2">
 <td class="itemname"><a class="bold" href="morse.base.html#EmorseLibError">EmorseLibError</a></td>
 <td class="itemunit"><a class="bold" href="morse.base.html">morse.base</a></td>
 <td class="itemdesc"><p>Used for all exceptions in morse-lib</p></td>
+</tr>
+<tr class="list">
+<td class="itemname"><a class="bold" href="morse.pcm.static.html#Float32">Float32</a></td>
+<td class="itemunit"><a class="bold" href="morse.pcm.static.html">morse.pcm.static</a></td>
+<td class="itemdesc"><p>&nbsp;</p></td>
+</tr>
+<tr class="list2">
+<td class="itemname"><a class="bold" href="morse.pcm.static.html#Float64">Float64</a></td>
+<td class="itemunit"><a class="bold" href="morse.pcm.static.html">morse.pcm.static</a></td>
+<td class="itemdesc"><p>&nbsp;</p></td>
+</tr>
+<tr class="list">
+<td class="itemname"><a class="bold" href="morse.pcm.static.html#PInt16">PInt16</a></td>
+<td class="itemunit"><a class="bold" href="morse.pcm.static.html">morse.pcm.static</a></td>
+<td class="itemdesc"><p>DELPHI and FPC Redefines for compatibility</p></td>
+</tr>
+<tr class="list2">
+<td class="itemname"><a class="bold" href="morse.pcm.static.html#PInt16Array">PInt16Array</a></td>
+<td class="itemunit"><a class="bold" href="morse.pcm.static.html">morse.pcm.static</a></td>
+<td class="itemdesc"><p>&nbsp;</p></td>
+</tr>
+<tr class="list">
+<td class="itemname"><a class="bold" href="morse.wavefile.base.html#TBitDepth">TBitDepth</a></td>
+<td class="itemunit"><a class="bold" href="morse.wavefile.base.html">morse.wavefile.base</a></td>
+<td class="itemdesc"><p>&nbsp;</p></td>
+</tr>
+<tr class="list2">
+<td class="itemname"><a class="bold" href="blaise.fpc.compat.html#Tbytes">Tbytes</a></td>
+<td class="itemunit"><a class="bold" href="blaise.fpc.compat.html">blaise.fpc.compat</a></td>
+<td class="itemdesc"><p>&nbsp;</p></td>
+</tr>
+<tr class="list">
+<td class="itemname"><a class="bold" href="morse.wavefile.base.html#TChannels">TChannels</a></td>
+<td class="itemunit"><a class="bold" href="morse.wavefile.base.html">morse.wavefile.base</a></td>
+<td class="itemdesc"><p>&nbsp;</p></td>
+</tr>
+<tr class="list2">
+<td class="itemname"><a class="bold" href="morse.wavefile.base.html#TheaderText">TheaderText</a></td>
+<td class="itemunit"><a class="bold" href="morse.wavefile.base.html">morse.wavefile.base</a></td>
+<td class="itemdesc"><p>&nbsp;</p></td>
+</tr>
+<tr class="list">
+<td class="itemname"><a class="bold" href="morse.pcm.static.html#TInt16Array">TInt16Array</a></td>
+<td class="itemunit"><a class="bold" href="morse.pcm.static.html">morse.pcm.static</a></td>
+<td class="itemdesc"><p>Array view over a PInt16 buffer, so we can index without pointer math. Never instantiate; only used through a cast. Range checks are off.</p></td>
+</tr>
+<tr class="list2">
+<td class="itemname"><a class="bold" href="morse.training.koch.html#TkochGroup">TkochGroup</a></td>
+<td class="itemunit"><a class="bold" href="morse.training.koch.html">morse.training.koch</a></td>
+<td class="itemdesc"><p><a href="https://www.qsl.net/kb5wck/super.html">https://www.qsl.net/kb5wck/super.html</a></p></td>
+</tr>
+<tr class="list">
+<td class="itemname"><a class="bold" href="morse.pcm.lowpass.html#Tlowpass">Tlowpass</a></td>
+<td class="itemunit"><a class="bold" href="morse.pcm.lowpass.html">morse.pcm.lowpass</a></td>
+<td class="itemdesc"><p>&nbsp;</p></td>
+</tr>
+<tr class="list2">
+<td class="itemname"><a class="bold" href="morse.dictionary.elements.html#TmorseElementDictionary">TmorseElementDictionary</a></td>
+<td class="itemunit"><a class="bold" href="morse.dictionary.elements.html">morse.dictionary.elements</a></td>
+<td class="itemdesc"><p>&nbsp;</p></td>
 </tr>
 <tr class="list">
 <td class="itemname"><a class="bold" href="morse.pcm.pinknoise.html#TNoise">TNoise</a></td>
@@ -38,14 +98,24 @@
 <td class="itemdesc"><p>Noise types for audio PCM data (off, white, or pink)</p></td>
 </tr>
 <tr class="list">
-<td class="itemname"><a class="bold" href="morse.pcm.Util.html#TNoiseType">TNoiseType</a></td>
-<td class="itemunit"><a class="bold" href="morse.pcm.Util.html">morse.pcm.Util</a></td>
-<td class="itemdesc"><p>TpcmArray&lt;T&gt; = array of T; //Not Accepted in Blaise yet!</p></td>
-</tr>
-<tr class="list2">
 <td class="itemname"><a class="bold" href="morse.base.html#Tpcm">Tpcm</a></td>
 <td class="itemunit"><a class="bold" href="morse.base.html">morse.base</a></td>
 <td class="itemdesc"><p>Array used for all PCM Data in morse-lib</p></td>
+</tr>
+<tr class="list2">
+<td class="itemname"><a class="bold" href="morse.dictionary.prosigns.html#TProsign">TProsign</a></td>
+<td class="itemunit"><a class="bold" href="morse.dictionary.prosigns.html">morse.dictionary.prosigns</a></td>
+<td class="itemdesc"><p>&nbsp;</p></td>
+</tr>
+<tr class="list">
+<td class="itemname"><a class="bold" href="blaise.fpc.compat.strreplace.html#TReplaceFlag">TReplaceFlag</a></td>
+<td class="itemunit"><a class="bold" href="blaise.fpc.compat.strreplace.html">blaise.fpc.compat.strreplace</a></td>
+<td class="itemdesc"><p>&nbsp;</p></td>
+</tr>
+<tr class="list2">
+<td class="itemname"><a class="bold" href="blaise.fpc.compat.strreplace.html#TReplaceFlags">TReplaceFlags</a></td>
+<td class="itemunit"><a class="bold" href="blaise.fpc.compat.strreplace.html">blaise.fpc.compat.strreplace</a></td>
+<td class="itemdesc"><p>&nbsp;</p></td>
 </tr>
 <tr class="list">
 <td class="itemname"><a class="bold" href="morse.base.html#TsampleRate">TsampleRate</a></td>

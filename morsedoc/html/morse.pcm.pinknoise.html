@@ -18,41 +18,30 @@
 <span id="PasDoc-FuncsProcs"></span><h3 class="summary">Functions and Procedures</h3>
 <table class="summary wide_list">
 <tr class="list">
-<td class="itemcode"><code>procedure <strong><a href="morse.pcm.pinknoise.html#PinkNoise">PinkNoise</a></strong>(var aPCM: <a href="morse.pcm.pinknoise.html#TNoise">TNoise</a>; aLengthms: UInt64; aAmplitude: UInt16 = 27000; aSampleRate: UInt32 = 44100);</code></td>
+<td class="itemcode"><code>procedure <strong><a href="morse.pcm.pinknoise.html#PinkNoise">PinkNoise</a></strong>(var aPCM: <a href="morse.pcm.pinknoise.html#TNoise">TNoise</a>; aLengthms: UInt64; aAmplitude: Int16 = 27000; aSampleRate: UInt32 = 44100);</code></td>
 </tr>
 </table>
 <span id="PasDoc-Types"></span><h3 class="summary">Types</h3>
 <table class="summary wide_list">
 <tr class="list">
-<td class="itemcode"><code><strong><a href="morse.pcm.pinknoise.html#TNoise">TNoise</a></strong> = array of Integer;</code></td>
+<td class="itemcode"><code><strong><a href="morse.pcm.pinknoise.html#TNoise">TNoise</a></strong> = array of Int16;</code></td>
 </tr>
 </table>
 <h2 class="description">Description</h2>
 <h3 class="detail">Functions and Procedures</h3>
 <table class="detail wide_list">
 <tr class="list">
-<td class="itemcode"><span id="PinkNoise"></span><code>procedure <strong>PinkNoise</strong>(var aPCM: <a href="morse.pcm.pinknoise.html#TNoise">TNoise</a>; aLengthms: UInt64; aAmplitude: UInt16 = 27000; aSampleRate: UInt32 = 44100);</code></td>
+<td class="itemcode"><span id="PinkNoise"></span><code>procedure <strong>PinkNoise</strong>(var aPCM: <a href="morse.pcm.pinknoise.html#TNoise">TNoise</a>; aLengthms: UInt64; aAmplitude: Int16 = 27000; aSampleRate: UInt32 = 44100);</code></td>
 </tr>
 <tr><td colspan="1">
 <p>
-Generates pink noise (1/f noise) with specified parameters    </p>
-<h6 class="description_section">Parameters</h6>
-<dl class="parameters">
-<dt>aPCM</dt>
-<dd>- Output array that will contain the generated samples</dd>
-<dt>aLengthms</dt>
-<dd>- Duration of the noise in milliseconds</dd>
-<dt>aAmplitude</dt>
-<dd>- Peak amplitude (default: 27000, max safe: 32767)</dd>
-<dt>aSampleRate</dt>
-<dd>- Sample rate in Hz (default: 44100)</dd>
-</dl>
+procedure PinkNoise(var aPCM: TNoise; aLengthms: UInt64; aAmplitude: Int16 = 27000; aSampleRate: UInt32 = 44100);</p>
 </td></tr>
 </table>
 <h3 class="detail">Types</h3>
 <table class="detail wide_list">
 <tr class="list">
-<td class="itemcode"><span id="TNoise"></span><code><strong>TNoise</strong> = array of Integer;</code></td>
+<td class="itemcode"><span id="TNoise"></span><code><strong>TNoise</strong> = array of Int16;</code></td>
 </tr>
 <tr><td colspan="1">
 &nbsp;</td></tr>

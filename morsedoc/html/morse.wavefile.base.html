@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>morse.wavefile.base</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="PasDoc 0.16.0">
+<meta http-equiv="content-type" content="text/html; charset=utf-8">
+<link rel="StyleSheet" type="text/css" href="pasdoc.css">
+</head>
+<body>
+<div class="container"><div class="navigation">
+<ul><li><a href="AllUnits.html">Units</a></li><li><a href="ClassHierarchy.html">Class Hierarchy</a></li><li><a href="AllClasses.html">Classes, Interfaces, Objects and Records</a></li><li><a href="AllTypes.html">Types</a></li><li><a href="AllVariables.html">Variables</a></li><li><a href="AllConstants.html">Constants</a></li><li><a href="AllFunctions.html">Functions and Procedures</a></li><li><a href="AllIdentifiers.html">Identifiers</a></li></ul></div><div class="content">
+<h1 class="unit">Unit morse.wavefile.base</h1>
+<div class="sections">
+<div class="one_section"><a class="section" href="#PasDoc-Description">Description</a></div><div class="one_section">Uses</div><div class="one_section"><a class="section" href="#PasDoc-Classes">Classes, Interfaces, Objects and Records</a></div><div class="one_section"><a class="section" href="#PasDoc-FuncsProcs">Functions and Procedures</a></div><div class="one_section"><a class="section" href="#PasDoc-Types">Types</a></div><div class="one_section">Constants</div><div class="one_section">Variables</div></div>
+<span id="PasDoc-Description"></span><h2 class="description">Description</h2>
+<p>
+<a href="https://docs.fileformat.com/audio/wav/">https://docs.fileformat.com/audio/wav/</a>
+
+<p><a href="https://en.wikipedia.org/wiki/WAV">https://en.wikipedia.org/wiki/WAV</a>
+
+<p>[Master RIFF chunk] FileTypeBlocID (4 bytes) : Identifier « RIFF » (0x52, 0x49, 0x46, 0x46) FileSize (4 bytes) : Overall file size minus 8 bytes FileFormatID (4 bytes) : Format = « WAVE » (0x57, 0x41, 0x56, 0x45)
+
+<p>[Chunk describing the data format] FormatBlocID (4 bytes) : Identifier « fmt␣ » (0x66, 0x6D, 0x74, 0x20) BlocSize (4 bytes) : Chunk size minus 8 bytes, which is 16 bytes here (0x10) AudioFormat (2 bytes) : Audio format (1: PCM integer, 3: IEEE 754 float) NbrChannels (2 bytes) : Number of channels Frequency (4 bytes) : Sample rate (in hertz) BytePerSec (4 bytes) : Number of bytes to read per second (Frequency * BytePerBloc). BytePerBloc (2 bytes) : Number of bytes per block (NbrChannels * BitsPerSample / 8). BitsPerSample (2 bytes) : Number of bits per sample
+
+<p>[Chunk containing the sampled data] DataBlocID (4 bytes) : Identifier « data » (0x64, 0x61, 0x74, 0x61) DataSize (4 bytes) : SampledData size [[SampledData]]</p>
+<span id="PasDoc-Uses"></span><h2 class="overview">Overview</h2>
+<span id="PasDoc-Classes"></span><h3 class="cio">Classes, Interfaces, Objects and Records</h3>
+<table class="classestable wide_list">
+<tr class="listheader">
+<th class="itemname">Name</th>
+<th class="itemdesc">Description</th>
+</tr>
+<tr class="list">
+<td class="itemname">Class&nbsp;<a class="bold" href="morse.wavefile.base.EWaveToolsExpception.html"><code>EWaveToolsExpception</code></a></td>
+<td class="itemdesc">&nbsp;</td>
+</tr>
+<tr class="list2">
+<td class="itemname">Packed Record&nbsp;<a class="bold" href="morse.wavefile.base.TWaveHeader.html"><code>TWaveHeader</code></a></td>
+<td class="itemdesc">&nbsp;</td>
+</tr>
+</table>
+<span id="PasDoc-FuncsProcs"></span><h3 class="summary">Functions and Procedures</h3>
+<table class="summary wide_list">
+<tr class="list">
+<td class="itemcode"><code>procedure <strong><a href="morse.wavefile.base.html#InitializeWaveHeader">InitializeWaveHeader</a></strong>(var aHeader: <a href="morse.wavefile.base.TWaveHeader.html">TWaveHeader</a>);</code></td>
+</tr>
+<tr class="list2">
+<td class="itemcode"><code>function <strong><a href="morse.wavefile.base.html#bytePerBlock">bytePerBlock</a></strong>(aNumChannels: int32; aBitsPerSample: int32): double; inline;</code></td>
+</tr>
+<tr class="list">
+<td class="itemcode"><code>function <strong><a href="morse.wavefile.base.html#bytesPerSec">bytesPerSec</a></strong>(aSampleFreq: double; aBytesPerBlock: double): double; inline;</code></td>
+</tr>
+</table>
+<span id="PasDoc-Types"></span><h3 class="summary">Types</h3>
+<table class="summary wide_list">
+<tr class="list">
+<td class="itemcode"><code><strong><a href="morse.wavefile.base.html#TBitDepth">TBitDepth</a></strong> = (...);</code></td>
+</tr>
+<tr class="list2">
+<td class="itemcode"><code><strong><a href="morse.wavefile.base.html#TChannels">TChannels</a></strong> = (...);</code></td>
+</tr>
+<tr class="list">
+<td class="itemcode"><code><strong><a href="morse.wavefile.base.html#TheaderText">TheaderText</a></strong> = array [0 .. 3] of byte;</code></td>
+</tr>
+</table>
+<h2 class="description">Description</h2>
+<h3 class="detail">Functions and Procedures</h3>
+<table class="detail wide_list">
+<tr class="list">
+<td class="itemcode"><span id="InitializeWaveHeader"></span><code>procedure <strong>InitializeWaveHeader</strong>(var aHeader: <a href="morse.wavefile.base.TWaveHeader.html">TWaveHeader</a>);</code></td>
+</tr>
+<tr><td colspan="1">
+&nbsp;</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="itemcode"><span id="bytePerBlock"></span><code>function <strong>bytePerBlock</strong>(aNumChannels: int32; aBitsPerSample: int32): double; inline;</code></td>
+</tr>
+<tr><td colspan="1">
+&nbsp;</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="itemcode"><span id="bytesPerSec"></span><code>function <strong>bytesPerSec</strong>(aSampleFreq: double; aBytesPerBlock: double): double; inline;</code></td>
+</tr>
+<tr><td colspan="1">
+&nbsp;</td></tr>
+</table>
+<h3 class="detail">Types</h3>
+<table class="detail wide_list">
+<tr class="list">
+<td class="itemcode"><span id="TBitDepth"></span><code><strong>TBitDepth</strong> = (...);</code></td>
+</tr>
+<tr><td colspan="1">
+&nbsp;<h6 class="description_section">Values</h6>
+<ul>
+<li>
+<span id="BitDepth8">BitDepth8 = 8</span></li>
+<li>
+<span id="BitDepth16">BitDepth16 = 16</span></li>
+<li>
+<span id="BitDepth24">BitDepth24 = 24</span></li>
+<li>
+<span id="BitDepth32">BitDepth32 = 32</span></li>
+</ul>
+</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="itemcode"><span id="TChannels"></span><code><strong>TChannels</strong> = (...);</code></td>
+</tr>
+<tr><td colspan="1">
+&nbsp;<h6 class="description_section">Values</h6>
+<ul>
+<li>
+<span id="Mono">Mono = 1</span></li>
+<li>
+<span id="Stereo">Stereo = 2</span></li>
+</ul>
+</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="itemcode"><span id="TheaderText"></span><code><strong>TheaderText</strong> = array [0 .. 3] of byte;</code></td>
+</tr>
+<tr><td colspan="1">
+&nbsp;</td></tr>
+</table>
+<hr><span class="appinfo"><em>Generated by <a href="https://pasdoc.github.io/">PasDoc 0.16.0</a>. </em>
+</span>
+</div></div></body></html>

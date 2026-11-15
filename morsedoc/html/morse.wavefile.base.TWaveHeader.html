@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>morse.wavefile.base: Packed Record TWaveHeader</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="PasDoc 0.16.0">
+<meta http-equiv="content-type" content="text/html; charset=utf-8">
+<link rel="StyleSheet" type="text/css" href="pasdoc.css">
+</head>
+<body>
+<div class="container"><div class="navigation">
+<ul><li><a href="AllUnits.html">Units</a></li><li><a href="ClassHierarchy.html">Class Hierarchy</a></li><li><a href="AllClasses.html">Classes, Interfaces, Objects and Records</a></li><li><a href="AllTypes.html">Types</a></li><li><a href="AllVariables.html">Variables</a></li><li><a href="AllConstants.html">Constants</a></li><li><a href="AllFunctions.html">Functions and Procedures</a></li><li><a href="AllIdentifiers.html">Identifiers</a></li></ul></div><div class="content">
+<span id="TWaveHeader"></span><h1 class="cio">Packed Record TWaveHeader</h1>
+<div class="sections">
+<div class="one_section"><a class="section" href="#PasDoc-Description">Description</a></div><div class="one_section">Hierarchy</div><div class="one_section"><a class="section" href="#PasDoc-Fields">Fields</a></div><div class="one_section">Methods</div><div class="one_section">Properties</div></div>
+<span id="PasDoc-Description"></span><h2 class="unit">Unit</h2>
+<p class="unitlink">
+<a href="morse.wavefile.base.html">morse.wavefile.base</a></p>
+<h2 class="declaration">Declaration</h2>
+<p class="declaration">
+<code>type TWaveHeader = packed record</code></p>
+<h2 class="description">Description</h2>
+<p>
+===========================================</p>
+<h2 class="overview">Overview</h2>
+<span id="PasDoc-Fields"></span><h3 class="summary">Fields</h3>
+<table class="summary wide_list">
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><code><strong><a href="morse.wavefile.base.TWaveHeader.html#RIFF">RIFF</a></strong>: <a href="morse.wavefile.base.html#TheaderText">TheaderText</a>;</code></td>
+</tr>
+<tr class="list2">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><code><strong><a href="morse.wavefile.base.TWaveHeader.html#FileSize">FileSize</a></strong>: uint32;</code></td>
+</tr>
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><code><strong><a href="morse.wavefile.base.TWaveHeader.html#WAVE">WAVE</a></strong>: <a href="morse.wavefile.base.html#TheaderText">TheaderText</a>;</code></td>
+</tr>
+<tr class="list2">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><code><strong><a href="morse.wavefile.base.TWaveHeader.html#fmt">fmt</a></strong>: <a href="morse.wavefile.base.html#TheaderText">TheaderText</a>;</code></td>
+</tr>
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><code><strong><a href="morse.wavefile.base.TWaveHeader.html#BlockSize">BlockSize</a></strong>: uint32;</code></td>
+</tr>
+<tr class="list2">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><code><strong><a href="morse.wavefile.base.TWaveHeader.html#TypeFormat">TypeFormat</a></strong>: uint16;</code></td>
+</tr>
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><code><strong><a href="morse.wavefile.base.TWaveHeader.html#NumChannles">NumChannles</a></strong>: uint16;</code></td>
+</tr>
+<tr class="list2">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><code><strong><a href="morse.wavefile.base.TWaveHeader.html#SampleRate">SampleRate</a></strong>: uint32;</code></td>
+</tr>
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><code><strong><a href="morse.wavefile.base.TWaveHeader.html#bytesPerSec">bytesPerSec</a></strong>: uint32;</code></td>
+</tr>
+<tr class="list2">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><code><strong><a href="morse.wavefile.base.TWaveHeader.html#bytesPerBlock">bytesPerBlock</a></strong>: uint16;</code></td>
+</tr>
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><code><strong><a href="morse.wavefile.base.TWaveHeader.html#BitsPerSample">BitsPerSample</a></strong>: uint16;</code></td>
+</tr>
+<tr class="list2">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><code><strong><a href="morse.wavefile.base.TWaveHeader.html#Data">Data</a></strong>: <a href="morse.wavefile.base.html#TheaderText">TheaderText</a>;</code></td>
+</tr>
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><code><strong><a href="morse.wavefile.base.TWaveHeader.html#sizeOfData">sizeOfData</a></strong>: uint32;</code></td>
+</tr>
+</table>
+<h2 class="description">Description</h2>
+<h3 class="detail">Fields</h3>
+<table class="detail wide_list">
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><span id="RIFF"></span><code><strong>RIFF</strong>: <a href="morse.wavefile.base.html#TheaderText">TheaderText</a>;</code></td>
+</tr>
+<tr><td colspan="2">
+&nbsp;</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><span id="FileSize"></span><code><strong>FileSize</strong>: uint32;</code></td>
+</tr>
+<tr><td colspan="2">
+<p>
+always 'RIFF'</p>
+</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><span id="WAVE"></span><code><strong>WAVE</strong>: <a href="morse.wavefile.base.html#TheaderText">TheaderText</a>;</code></td>
+</tr>
+<tr><td colspan="2">
+<p>
+size of overall file -8 bytes</p>
+</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><span id="fmt"></span><code><strong>fmt</strong>: <a href="morse.wavefile.base.html#TheaderText">TheaderText</a>;</code></td>
+</tr>
+<tr><td colspan="2">
+<p>
+always 'WAVE'</p>
+</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><span id="BlockSize"></span><code><strong>BlockSize</strong>: uint32;</code></td>
+</tr>
+<tr><td colspan="2">
+<p>
+always 'fmt '</p>
+</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><span id="TypeFormat"></span><code><strong>TypeFormat</strong>: uint16;</code></td>
+</tr>
+<tr><td colspan="2">
+<p>
+usually always 16 , length of data above</p>
+</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><span id="NumChannles"></span><code><strong>NumChannles</strong>: uint16;</code></td>
+</tr>
+<tr><td colspan="2">
+<p>
+1 = pcm</p>
+</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><span id="SampleRate"></span><code><strong>SampleRate</strong>: uint32;</code></td>
+</tr>
+<tr><td colspan="2">
+<p>
+number of channels</p>
+</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><span id="bytesPerSec"></span><code><strong>bytesPerSec</strong>: uint32;</code></td>
+</tr>
+<tr><td colspan="2">
+<p>
+sample Rate;</p>
+</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><span id="bytesPerBlock"></span><code><strong>bytesPerBlock</strong>: uint16;</code></td>
+</tr>
+<tr><td colspan="2">
+&nbsp;</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><span id="BitsPerSample"></span><code><strong>BitsPerSample</strong>: uint16;</code></td>
+</tr>
+<tr><td colspan="2">
+<p>
+(Sample Rate * BitsPerSample * Channels) / 8</p>
+</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><span id="Data"></span><code><strong>Data</strong>: <a href="morse.wavefile.base.html#TheaderText">TheaderText</a>;</code></td>
+</tr>
+<tr><td colspan="2">
+<p>
+usually 16-bit</p>
+</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><span id="sizeOfData"></span><code><strong>sizeOfData</strong>: uint32;</code></td>
+</tr>
+<tr><td colspan="2">
+<p>
+'data'</p>
+</td></tr>
+</table>
+<hr><span class="appinfo"><em>Generated by <a href="https://pasdoc.github.io/">PasDoc 0.16.0</a>. </em>
+</span>
+</div></div></body></html>

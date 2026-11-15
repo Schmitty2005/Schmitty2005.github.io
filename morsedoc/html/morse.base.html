@@ -12,19 +12,10 @@
 <ul><li><a href="AllUnits.html">Units</a></li><li><a href="ClassHierarchy.html">Class Hierarchy</a></li><li><a href="AllClasses.html">Classes, Interfaces, Objects and Records</a></li><li><a href="AllTypes.html">Types</a></li><li><a href="AllVariables.html">Variables</a></li><li><a href="AllConstants.html">Constants</a></li><li><a href="AllFunctions.html">Functions and Procedures</a></li><li><a href="AllIdentifiers.html">Identifiers</a></li></ul></div><div class="content">
 <h1 class="unit">Unit morse.base</h1>
 <div class="sections">
-<div class="one_section"><a class="section" href="#PasDoc-Description">Description</a></div><div class="one_section">Uses</div><div class="one_section"><a class="section" href="#PasDoc-Classes">Classes, Interfaces, Objects and Records</a></div><div class="one_section">Functions and Procedures</div><div class="one_section"><a class="section" href="#PasDoc-Types">Types</a></div><div class="one_section">Constants</div><div class="one_section"><a class="section" href="#PasDoc-Variables">Variables</a></div></div>
+<div class="one_section"><a class="section" href="#PasDoc-Description">Description</a></div><div class="one_section">Uses</div><div class="one_section"><a class="section" href="#PasDoc-Classes">Classes, Interfaces, Objects and Records</a></div><div class="one_section"><a class="section" href="#PasDoc-FuncsProcs">Functions and Procedures</a></div><div class="one_section"><a class="section" href="#PasDoc-Types">Types</a></div><div class="one_section">Constants</div><div class="one_section"><a class="section" href="#PasDoc-Variables">Variables</a></div></div>
 <span id="PasDoc-Description"></span><h2 class="description">Description</h2>
 <p>
-The base unit for the Morse-lib. These are what are needed to configure the morse code generator. A default settings is provided called <a class="normal" href="morse.base.html#DefaultMorseSettings">DefaultMorseSettings</a>. The settings are as follows : </p>
-
-<pre class="longcode">
-WPM : <span class="pascal_numeric">18</span>
-Farnsworth : Disabled
-Noise : Disabled
-Tone Hz  : <span class="pascal_numeric">800</span> Hz
-Volume : (TBA)</pre>
-
-<p></p>
+#todo -oB -c'Lazarus GTK3 BUG' : Lazarus GTK3 MemoBox does not autoscroll when filled with new data. QT5 autoscrolls when filled with data.</p>
 <span id="PasDoc-Uses"></span><h2 class="overview">Overview</h2>
 <span id="PasDoc-Classes"></span><h3 class="cio">Classes, Interfaces, Objects and Records</h3>
 <table class="classestable wide_list">
@@ -41,10 +32,25 @@ Volume : (TBA)</pre>
 <td class="itemdesc">&nbsp;</td>
 </tr>
 </table>
+<span id="PasDoc-FuncsProcs"></span><h3 class="summary">Functions and Procedures</h3>
+<table class="summary wide_list">
+<tr class="list">
+<td class="itemcode"><code>procedure <strong><a href="morse.base.html#asciiSanitize">asciiSanitize</a></strong>(var AasciiString: string);</code></td>
+</tr>
+<tr class="list2">
+<td class="itemcode"><code>function <strong><a href="morse.base.html#LinearScaleInteger">LinearScaleInteger</a></strong>(AValue: integer; ANewMin, ANewMax: Integer): integer;</code></td>
+</tr>
+<tr class="list">
+<td class="itemcode"><code>function <strong><a href="morse.base.html#LinearScaleInt16">LinearScaleInt16</a></strong>(AValue: Int16; ANewMin, ANewMax: Int16): Int16;</code></td>
+</tr>
+<tr class="list2">
+<td class="itemcode"><code>procedure <strong><a href="morse.base.html#printMorseSettings">printMorseSettings</a></strong>(const ms: <a href="morse.base.TmorseSettings.html">TmorseSettings</a>);</code></td>
+</tr>
+</table>
 <span id="PasDoc-Types"></span><h3 class="summary">Types</h3>
 <table class="summary wide_list">
 <tr class="list">
-<td class="itemcode"><code><strong><a href="morse.base.html#Tpcm">Tpcm</a></strong> = array of Integer;</code></td>
+<td class="itemcode"><code><strong><a href="morse.base.html#Tpcm">Tpcm</a></strong> = array of Int16;</code></td>
 </tr>
 <tr class="list2">
 <td class="itemcode"><code><strong><a href="morse.base.html#EmorseLibError">EmorseLibError</a></strong> = Exception;</code></td>
@@ -63,10 +69,47 @@ Volume : (TBA)</pre>
 </tr>
 </table>
 <h2 class="description">Description</h2>
+<h3 class="detail">Functions and Procedures</h3>
+<table class="detail wide_list">
+<tr class="list">
+<td class="itemcode"><span id="asciiSanitize"></span><code>procedure <strong>asciiSanitize</strong>(var AasciiString: string);</code></td>
+</tr>
+<tr><td colspan="1">
+<p>
+Clean up ASCII string for morse encoding. Only alpha-numeric characters and limited punctuation are allowed</p>
+</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="itemcode"><span id="LinearScaleInteger"></span><code>function <strong>LinearScaleInteger</strong>(AValue: integer; ANewMin, ANewMax: Integer): integer;</code></td>
+</tr>
+<tr><td colspan="1">
+<p>
+Used to scale an Integer value to a smaller in Lazaurus / Delphi. Useful when creating GUI's and drawing the 32-bit signed int waveshape on a canvas!</p>
+</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="itemcode"><span id="LinearScaleInt16"></span><code>function <strong>LinearScaleInt16</strong>(AValue: Int16; ANewMin, ANewMax: Int16): Int16;</code></td>
+</tr>
+<tr><td colspan="1">
+<p>
+Used to scale an Integer value to a smaller in Lazaurus / Delphi. Useful when creating GUI's and drawing the 16-bit signed int waveshape on a canvas!</p>
+</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="itemcode"><span id="printMorseSettings"></span><code>procedure <strong>printMorseSettings</strong>(const ms: <a href="morse.base.TmorseSettings.html">TmorseSettings</a>);</code></td>
+</tr>
+<tr><td colspan="1">
+<p>
+A simple procedure used mostly for troubleshooting and CLI. It will display all the settings of TMorseSettings</p>
+</td></tr>
+</table>
 <h3 class="detail">Types</h3>
 <table class="detail wide_list">
 <tr class="list">
-<td class="itemcode"><span id="Tpcm"></span><code><strong>Tpcm</strong> = array of Integer;</code></td>
+<td class="itemcode"><span id="Tpcm"></span><code><strong>Tpcm</strong> = array of Int16;</code></td>
 </tr>
 <tr><td colspan="1">
 <p>
@@ -117,6 +160,8 @@ Noise types for audio PCM data (off, white, or pink)</p>
 <span id="ntWhite">ntWhite</span></li>
 <li>
 <span id="ntPink">ntPink</span></li>
+<li>
+<span id="ntGaussian">ntGaussian</span></li>
 </ul>
 </td></tr>
 </table>

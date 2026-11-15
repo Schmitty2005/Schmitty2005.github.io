@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>blaise.fpc.compat</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="PasDoc 0.16.0">
+<meta http-equiv="content-type" content="text/html; charset=utf-8">
+<link rel="StyleSheet" type="text/css" href="pasdoc.css">
+</head>
+<body>
+<div class="container"><div class="navigation">
+<ul><li><a href="AllUnits.html">Units</a></li><li><a href="ClassHierarchy.html">Class Hierarchy</a></li><li><a href="AllClasses.html">Classes, Interfaces, Objects and Records</a></li><li><a href="AllTypes.html">Types</a></li><li><a href="AllVariables.html">Variables</a></li><li><a href="AllConstants.html">Constants</a></li><li><a href="AllFunctions.html">Functions and Procedures</a></li><li><a href="AllIdentifiers.html">Identifiers</a></li></ul></div><div class="content">
+<h1 class="unit">Unit blaise.fpc.compat</h1>
+<div class="sections">
+<div class="one_section"><a class="section" href="#PasDoc-Description">Description</a></div><div class="one_section">Uses</div><div class="one_section">Classes, Interfaces, Objects and Records</div><div class="one_section"><a class="section" href="#PasDoc-FuncsProcs">Functions and Procedures</a></div><div class="one_section"><a class="section" href="#PasDoc-Types">Types</a></div><div class="one_section">Constants</div><div class="one_section">Variables</div></div>
+<span id="PasDoc-Description"></span><h2 class="description">Description</h2>
+&nbsp;<span id="PasDoc-Uses"></span><h2 class="overview">Overview</h2>
+<span id="PasDoc-FuncsProcs"></span><h3 class="summary">Functions and Procedures</h3>
+<table class="summary wide_list">
+<tr class="list">
+<td class="itemcode"><code>function <strong><a href="blaise.fpc.compat.html#barrCopy">barrCopy</a></strong>(a : <a href="blaise.fpc.compat.html#Tbytes">Tbytes</a>; h, l : uInt64) : <a href="blaise.fpc.compat.html#Tbytes">Tbytes</a>;</code></td>
+</tr>
+<tr class="list2">
+<td class="itemcode"><code>function <strong><a href="blaise.fpc.compat.html#arrCopy">arrCopy</a></strong>(a : <a href="morse.base.html#Tpcm">Tpcm</a>; h, l : Int64) : <a href="morse.base.html#Tpcm">Tpcm</a>;</code></td>
+</tr>
+<tr class="list">
+<td class="itemcode"><code>function <strong><a href="blaise.fpc.compat.html#concatTpcm">concatTpcm</a></strong>( a1 , a2 : <a href="morse.base.html#Tpcm">Tpcm</a>) : <a href="morse.base.html#Tpcm">Tpcm</a>;</code></td>
+</tr>
+<tr class="list2">
+<td class="itemcode"><code>procedure <strong><a href="blaise.fpc.compat.html#AppendPCM">AppendPCM</a></strong>(var Dest: <a href="morse.base.html#Tpcm">Tpcm</a>; const Src: <a href="morse.base.html#Tpcm">Tpcm</a>);</code></td>
+</tr>
+<tr class="list">
+<td class="itemcode"><code>function <strong><a href="blaise.fpc.compat.html#BinStrEx">BinStrEx</a></strong>(Value: Int64; Digits: Byte): string;</code></td>
+</tr>
+<tr class="list2">
+<td class="itemcode"><code>function <strong><a href="blaise.fpc.compat.html#HexStrEx">HexStrEx</a></strong>(Value: Int64; Digits: Byte): string;</code></td>
+</tr>
+</table>
+<span id="PasDoc-Types"></span><h3 class="summary">Types</h3>
+<table class="summary wide_list">
+<tr class="list">
+<td class="itemcode"><code><strong><a href="blaise.fpc.compat.html#Tbytes">Tbytes</a></strong> = array of byte;</code></td>
+</tr>
+</table>
+<h2 class="description">Description</h2>
+<h3 class="detail">Functions and Procedures</h3>
+<table class="detail wide_list">
+<tr class="list">
+<td class="itemcode"><span id="barrCopy"></span><code>function <strong>barrCopy</strong>(a : <a href="blaise.fpc.compat.html#Tbytes">Tbytes</a>; h, l : uInt64) : <a href="blaise.fpc.compat.html#Tbytes">Tbytes</a>;</code></td>
+</tr>
+<tr><td colspan="1">
+&nbsp;</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="itemcode"><span id="arrCopy"></span><code>function <strong>arrCopy</strong>(a : <a href="morse.base.html#Tpcm">Tpcm</a>; h, l : Int64) : <a href="morse.base.html#Tpcm">Tpcm</a>;</code></td>
+</tr>
+<tr><td colspan="1">
+<p>
+needs fixin in blaise</p>
+</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="itemcode"><span id="concatTpcm"></span><code>function <strong>concatTpcm</strong>( a1 , a2 : <a href="morse.base.html#Tpcm">Tpcm</a>) : <a href="morse.base.html#Tpcm">Tpcm</a>;</code></td>
+</tr>
+<tr><td colspan="1">
+&nbsp;</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="itemcode"><span id="AppendPCM"></span><code>procedure <strong>AppendPCM</strong>(var Dest: <a href="morse.base.html#Tpcm">Tpcm</a>; const Src: <a href="morse.base.html#Tpcm">Tpcm</a>);</code></td>
+</tr>
+<tr><td colspan="1">
+<p>
+Appends Src to the end of Dest, in place. The one place that knows how each compiler joins dynamic arrays: FPC uses the ArrayOperators &quot;+&quot;, Blaise copies the elements. Dest is a var parameter, so a call cannot silently discard the joined array.</p>
+</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="itemcode"><span id="BinStrEx"></span><code>function <strong>BinStrEx</strong>(Value: Int64; Digits: Byte): string;</code></td>
+</tr>
+<tr><td colspan="1">
+&nbsp;</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="itemcode"><span id="HexStrEx"></span><code>function <strong>HexStrEx</strong>(Value: Int64; Digits: Byte): string;</code></td>
+</tr>
+<tr><td colspan="1">
+&nbsp;</td></tr>
+</table>
+<h3 class="detail">Types</h3>
+<table class="detail wide_list">
+<tr class="list">
+<td class="itemcode"><span id="Tbytes"></span><code><strong>Tbytes</strong> = array of byte;</code></td>
+</tr>
+<tr><td colspan="1">
+&nbsp;</td></tr>
+</table>
+<hr><span class="appinfo"><em>Generated by <a href="https://pasdoc.github.io/">PasDoc 0.16.0</a>. </em>
+</span>
+</div></div></body></html>

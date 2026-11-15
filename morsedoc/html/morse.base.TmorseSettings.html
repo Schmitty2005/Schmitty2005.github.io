@@ -27,23 +27,23 @@ The settting used for creation of the morse code sounds</p>
 <table class="summary wide_list">
 <tr class="list">
 <td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
-<td class="itemcode"><code><strong><a href="morse.base.TmorseSettings.html#wpm">wpm</a></strong>: Integer;</code></td>
+<td class="itemcode"><code><strong><a href="morse.base.TmorseSettings.html#wpm">wpm</a></strong>: integer;</code></td>
 </tr>
 <tr class="list2">
 <td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
-<td class="itemcode"><code><strong><a href="morse.base.TmorseSettings.html#ToneHertz">ToneHertz</a></strong>: Integer;</code></td>
+<td class="itemcode"><code><strong><a href="morse.base.TmorseSettings.html#ToneHertz">ToneHertz</a></strong>: integer;</code></td>
 </tr>
 <tr class="list">
 <td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
-<td class="itemcode"><code><strong><a href="morse.base.TmorseSettings.html#morseLevel">morseLevel</a></strong>: Integer;</code></td>
+<td class="itemcode"><code><strong><a href="morse.base.TmorseSettings.html#morseLevel">morseLevel</a></strong>: int16;</code></td>
 </tr>
 <tr class="list2">
 <td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
-<td class="itemcode"><code><strong><a href="morse.base.TmorseSettings.html#FarsworthEnabled">FarsworthEnabled</a></strong>: Boolean;</code></td>
+<td class="itemcode"><code><strong><a href="morse.base.TmorseSettings.html#FarsworthEnabled">FarsworthEnabled</a></strong>: boolean;</code></td>
 </tr>
 <tr class="list">
 <td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
-<td class="itemcode"><code><strong><a href="morse.base.TmorseSettings.html#FarnsworthWPM">FarnsworthWPM</a></strong>: Integer;</code></td>
+<td class="itemcode"><code><strong><a href="morse.base.TmorseSettings.html#FarnsworthWPM">FarnsworthWPM</a></strong>: integer;</code></td>
 </tr>
 <tr class="list2">
 <td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
@@ -51,11 +51,15 @@ The settting used for creation of the morse code sounds</p>
 </tr>
 <tr class="list">
 <td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
-<td class="itemcode"><code><strong><a href="morse.base.TmorseSettings.html#NoiseLevel">NoiseLevel</a></strong>: Integer;</code></td>
+<td class="itemcode"><code><strong><a href="morse.base.TmorseSettings.html#NoiseLevel">NoiseLevel</a></strong>: Int16;</code></td>
 </tr>
 <tr class="list2">
 <td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
 <td class="itemcode"><code><strong><a href="morse.base.TmorseSettings.html#Timings">Timings</a></strong>: <a href="morse.base.TElementTimings.html">TElementTimings</a>;</code></td>
+</tr>
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><code><strong><a href="morse.base.TmorseSettings.html#SampleRate">SampleRate</a></strong>: integer;</code></td>
 </tr>
 </table>
 <h2 class="description">Description</h2>
@@ -63,7 +67,7 @@ The settting used for creation of the morse code sounds</p>
 <table class="detail wide_list">
 <tr class="list">
 <td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
-<td class="itemcode"><span id="wpm"></span><code><strong>wpm</strong>: Integer;</code></td>
+<td class="itemcode"><span id="wpm"></span><code><strong>wpm</strong>: integer;</code></td>
 </tr>
 <tr><td colspan="2">
 <p>
@@ -73,7 +77,7 @@ Set the WPM for the morse code output</p>
 <table class="detail wide_list">
 <tr class="list">
 <td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
-<td class="itemcode"><span id="ToneHertz"></span><code><strong>ToneHertz</strong>: Integer;</code></td>
+<td class="itemcode"><span id="ToneHertz"></span><code><strong>ToneHertz</strong>: integer;</code></td>
 </tr>
 <tr><td colspan="2">
 <p>
@@ -83,7 +87,7 @@ Set the tone in hertz for the audio output</p>
 <table class="detail wide_list">
 <tr class="list">
 <td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
-<td class="itemcode"><span id="morseLevel"></span><code><strong>morseLevel</strong>: Integer;</code></td>
+<td class="itemcode"><span id="morseLevel"></span><code><strong>morseLevel</strong>: int16;</code></td>
 </tr>
 <tr><td colspan="2">
 <p>
@@ -93,7 +97,7 @@ Set the level of the output. A good start would be 70% of max Integer value</p>
 <table class="detail wide_list">
 <tr class="list">
 <td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
-<td class="itemcode"><span id="FarsworthEnabled"></span><code><strong>FarsworthEnabled</strong>: Boolean;</code></td>
+<td class="itemcode"><span id="FarsworthEnabled"></span><code><strong>FarsworthEnabled</strong>: boolean;</code></td>
 </tr>
 <tr><td colspan="2">
 <p>
@@ -103,7 +107,7 @@ Enable Farnsworth Spacing</p>
 <table class="detail wide_list">
 <tr class="list">
 <td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
-<td class="itemcode"><span id="FarnsworthWPM"></span><code><strong>FarnsworthWPM</strong>: Integer;</code></td>
+<td class="itemcode"><span id="FarnsworthWPM"></span><code><strong>FarnsworthWPM</strong>: integer;</code></td>
 </tr>
 <tr><td colspan="2">
 <p>
@@ -123,7 +127,7 @@ Set the noise type to off, white, or pink</p>
 <table class="detail wide_list">
 <tr class="list">
 <td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
-<td class="itemcode"><span id="NoiseLevel"></span><code><strong>NoiseLevel</strong>: Integer;</code></td>
+<td class="itemcode"><span id="NoiseLevel"></span><code><strong>NoiseLevel</strong>: Int16;</code></td>
 </tr>
 <tr><td colspan="2">
 <p>
@@ -136,7 +140,19 @@ Set the noise level. It should be the inverse of the morseLevel, 30 % of max Int
 <td class="itemcode"><span id="Timings"></span><code><strong>Timings</strong>: <a href="morse.base.TElementTimings.html">TElementTimings</a>;</code></td>
 </tr>
 <tr><td colspan="2">
-&nbsp;</td></tr>
+<p>
+Holds all of the elements lengths in seconds</p>
+</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><span id="SampleRate"></span><code><strong>SampleRate</strong>: integer;</code></td>
+</tr>
+<tr><td colspan="2">
+<p>
+Set Sample Rate of desired PCM Output.</p>
+</td></tr>
 </table>
 <hr><span class="appinfo"><em>Generated by <a href="https://pasdoc.github.io/">PasDoc 0.16.0</a>. </em>
 </span>
